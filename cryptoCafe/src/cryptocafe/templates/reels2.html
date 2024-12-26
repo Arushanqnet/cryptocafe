@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Crypto News - Reels</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css"
+    />
+    <script
+      src="https://cdn.jsdelivr.net/npm/fabric@5.2.4/dist/fabric.min.js"
+    ></script>
+    <style>
+      body {
+        background-color: white;
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      #reels-container {
+        flex-grow: 1;
+        position: relative; /* For progress bar */
+      }
+      #reels-canvas {
+        border-radius: 8px;
+      }
+      .controls {
+        position: absolute; /* Overlays the canvas */
+        bottom: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 1rem;
+      }
+      .control-btn {
+        font-size: 1rem;
+        border: none;
+        background-color: transparent;
+        cursor: pointer;
+        color: white;
+      }
+      .progress-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 5px;
+        background-color: #ddd;
+      }
+      .progress-fill {
+        width: 0%;
+        height: 100%;
+        background-color: #007bff; /* Adjust to match brand color */
+      }
+      @media (max-width: 768px) {
+        #reels-canvas {
+          width: 90% !important;
+          height: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container-fluid" id="reels-container">
+      <canvas id="reels-canvas" width="360" height="600"></canvas>
+      <div class="controls">
+        <button id="prev-btn" class="control-btn">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <button id="play-pause-btn" class="control-btn">
+          <i class="fas fa-play"></i>
+        </button>
+        <button id="next-btn" class="control-btn">
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+    <div class="mt-2 text-center">
+      <a href="/" class="btn btn-outline-dark btn-sm">Back to Cards</a>
+    </div>
+    <script>
+        // Grab the news data passed from Quart as JSON
+        const newsItems = JSON.parse('{{ data|tojson }}');
+  
+        // Initialize Fabric.js canvas
+        const canvas = new fabric.Canvas('reels-canvas');
+  
+        let currentIndex = 0;
+        let isSpeaking = false;
+        let synth = window.speechSynthesis;
+        let utterance = null;
+  
+        // Helper function to speak text
+        function speakText(text) {
+          // Stop any ongoing speech
+          if (utterance && synth.speaking) {
+            synth.cancel();
+          }
+          utterance = new SpeechSynthesisUtterance(text);
+          synth.speak(utterance);
+        }
+  
+        // Load and render a single news item on the Fabric.js canvas
+        async function showNewsItem(index) {
+          // Bounds check
+          if (index < 0 || index >= newsItems.length) {
+            return;
+          }
+          currentIndex = index;
+  
+          // Clear the canvas
+          canvas.clear();
+  
+          const item = newsItems[index];
+          const imageUrl = item.image_url;
+  
+          // Preload the image (optional, but ensures we catch errors quickly)
+          await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous'; // handle cross-origin
+            img.onload = () => resolve();
+            img.onerror = () => reject();
+            img.src = imageUrl;
+          }).catch(() => {
+            console.warn('Image failed to load, using placeholder.');
+          });
+  
+          // Add background image
+          fabric.Image.fromURL(imageUrl, function(img) {
+            if (!img) {
+              // fallback image
+              fabric.Image.fromURL('https://via.placeholder.com/360x200.png?text=No+Image', function(placeholder) {
+                placeholder.scaleToWidth(canvas.width);
+                canvas.add(placeholder);
+                canvas.renderAll();
+              });
+            } else {
+              // Scale image to fit canvas width
+              img.scaleToWidth(canvas.width);
+              canvas.add(img);
+              canvas.renderAll();
+            }
+          });
+  
+          // Add title text near the top
+          const titleObj = new fabric.Textbox(item.title || 'No Title', {
+            left: 20,
+            top: 20,
+            width: canvas.width - 40,
+            fontSize: 20,
+            fontWeight: 'bold',
+            fill: '#000000',
+          });
+          canvas.add(titleObj);
+  
+          // Add description text
+          const textObj = new fabric.Textbox(item.text || 'No Description', {
+            left: 20,
+            top: 200,
+            width: canvas.width - 40,
+            fontSize: 16,
+            fill: '#333333',
+          });
+          canvas.add(textObj);
+  
+          // Read the news text out loud
+          speakText(item.text || '');
+        }
+  
+        // Initial load
+        showNewsItem(currentIndex);
+  
+        // Button event listeners
+        // document.getElementById('next-btn').addEventListener('click', () => {
+        //   let nextIndex = currentIndex + 1;
+        //   if (nextIndex >= newsItems.length) {
+        //     nextIndex = 0; // loop back to start
+        //   }
+        //   showNewsItem(nextIndex);
+        // });
+  
+        // document.getElementById('prev-btn').addEventListener('click', () => {
+        //   let prevIndex = currentIndex - 1;
+        //   if (prevIndex < 0) {
+        //     prevIndex = newsItems.length - 1; // go to last item
+        //   }
+        //   showNewsItem(prevIndex);
+        // });
+      </script>
+    <script>
+      // ... (Existing JavaScript code for news items, canvas, etc.)
+
+      let isPlaying = true; // Track play/pause state
+      const playPauseButton = document.getElementById('play-pause-btn');
+      const progressBarFill = document.getElementById('progress-fill');
+
+      function updateProgressBar() {
+        const progress = ((currentIndex + 1) / newsItems.length) * 100;
+        progressBarFill.style.width = `${progress}%`;
+      }
+
+      // Play/Pause functionality
+      playPauseButton.addEventListener('click', () => {
+        isPlaying = !isPlaying;
+        if (isPlaying) {
+          playPauseButton.innerHTML = '<i class="fas fa-pause"></i>';
+          speakText(newsItems[currentIndex].text || ''); // Resume speaking
+        } else {
+          playPauseButton.innerHTML = '<i class="fas fa-play"></i>';
+          speechSynthesis.pause(); // Pause speech
+        }
+      });
+      // ... (Existing event listeners for next/prev buttons)
+
+      document.getElementById('next-btn').addEventListener('click', () => {
+        let nextIndex = currentIndex + 1;
+        if (nextIndex >= newsItems.length) {
+          nextIndex = 0; // loop back to start
+        }
+        showNewsItem(nextIndex);
+        updateProgressBar();
+      });
+
+      document.getElementById('prev-btn').addEventListener('click', () => {
+        let prevIndex = currentIndex - 1;
+        if (prevIndex < 0) {
+          prevIndex = newsItems.length - 1; // go to last item
+        }
+        showNewsItem(prevIndex);
+        updateProgressBar();
+      });
+      // Initial load
+      showNewsItem(currentIndex);
+      updateProgressBar();
+    </script>
+  </body>
+</html>

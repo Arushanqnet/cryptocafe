@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "cryptocafe"
+version = "0.1.0"
+description = ""
+authors = ["Arushan2 <rockarush2@gmail.com>"]
+readme = "README.md"
+packages = [{include = "cryptocafe", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+quart = "^0.20.0"
+requests = "^2.32.3"
+
+[tool.poetry.scripts]
+start = "cryptocafe:run"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,53 @@
+{
+    "data": [
+        {
+            "news_url": "https://cryptoslate.com/kulr-latest-to-add-bitcoin-to-corporate-treasury-with-21-million-acquisition/",
+            "image_url": "https://crypto.snapi.dev/images/v1/h/b/k/bitcoin-microstrategy-617956.jpg",
+            "title": "KULR latest to add Bitcoin to corporate treasury with $21 million acquisition",
+            "text": "Energy company KULR Technology Group unveiled the start of its Bitcoin (BTC) treasury on Dec. 4 by acquiring 217.18 BTC for approximately $21 million, at an average purchase price of $96,556.53 per Bitcoin.",
+            "source_name": "CryptoSlate",
+            "date": "Thu, 26 Dec 2024 13:25:18 -0500",
+            "topics": [
+                "regulations",
+                "pricemovement"
+            ],
+            "sentiment": "Positive",
+            "type": "Article",
+            "tickers": [
+                "BTC"
+            ]
+        },
+        {
+            "news_url": "https://u.today/bitcoin-price-might-hit-1-million-next-year-if-this-happens-according-to-bitwise-exec?utm_source=snapi",
+            "image_url": "https://crypto.snapi.dev/images/v1/q/p/j/32100-617954.jpg",
+            "title": "Bitcoin Price Might Hit $1 Million Next Year If This Happens, According to Bitwise Exec",
+            "text": "Jeff Park, head of alpha strategies at Bitwise Invest, has predicted that the price of Bitcoin might potentially hit $1 million if the US creates a Bitcoin reserve.",
+            "source_name": "UToday",
+            "date": "Thu, 26 Dec 2024 13:05:56 -0500",
+            "topics": [
+                "pricemovement"
+            ],
+            "sentiment": "Positive",
+            "type": "Article",
+            "tickers": [
+                "BTC"
+            ]
+        },
+        {
+            "news_url": "https://crypto.news/texas-ohio-and-pennsylvania-to-create-bitcoin-reserves/",
+            "image_url": "https://crypto.snapi.dev/images/v1/o/d/u/btc24-571730-617951.jpg",
+            "title": "Texas, Ohio, and Pennsylvania to create the state-level Bitcoin reserves. What are these bills?",
+            "text": "Three of the 50 states of America are expected to create local Bitcoin reserves soon. The bills differ from the proposal of the American National Bitcoin Reserve and demonstrate local specifics.",
+            "source_name": "Crypto news",
+            "date": "Thu, 26 Dec 2024 13:01:43 -0500",
+            "topics": [],
+            "sentiment": "Positive",
+            "type": "Article",
+            "tickers": [
+                "BTC"
+            ]
+        }
+    ],
+    "total_pages": 3334,
+    "total_items": 10000
+}
