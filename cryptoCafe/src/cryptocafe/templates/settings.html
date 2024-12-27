@@ -9,6 +9,150 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
     >
+
+    <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap"
+  >
+
+  <style>
+    /* Use a sleek, professional font */
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #06102B, #0D213E);
+      color: #ECECEC;
+    }
+
+    /* Navbar - create a gradient effect and add a subtle shadow */
+    .navbar {
+      background: linear-gradient(135deg, #0077F5, #00CBFF);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    }
+    .navbar-brand {
+      font-weight: 600;
+    }
+    .nav-link {
+      color: #FFF !important;
+      margin-right: 0.5rem;
+    }
+    .nav-link:hover {
+      color: #F0F0F0 !important;
+    }
+
+    /* Container - add some spacing and subtle shadow */
+    .container {
+      margin-top: 2rem;
+      margin-bottom: 2rem;
+      background-color: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+      padding: 2rem;
+    }
+
+    /* Headings inside container */
+    h1, h2 {
+      font-weight: 600;
+      color: #FFFFFF;
+    }
+
+    /* Hero text for non-logged-in users */
+    .hero-text {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .hero-text h1 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    .hero-text p {
+      font-size: 1.1rem;
+    }
+
+    /* Search form inputs */
+    .form-control, .form-select {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+    }
+    .form-control:focus, .form-select:focus {
+      border-color: #00CBFF;
+      outline: none;
+      box-shadow: 0 0 5px rgba(0, 203, 255, 0.5);
+    }
+
+    /* Search button styling */
+    .btn-primary {
+      background-color: #0069D9;
+      border: none;
+      transition: background-color 0.3s ease;
+    }
+    .btn-primary:hover {
+      background-color: #005bb5;
+    }
+
+    /* Card styling */
+    .card {
+      background-color: #1B2945;
+      color: #fff;
+      border: none;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+    }
+    .card-img-top {
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+    }
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+    .card-text {
+      font-size: 0.95rem;
+      color: #d1d1d1;
+    }
+    .card-footer {
+      background-color: #152235;
+      border-bottom-left-radius: 8px;
+      border-bottom-right-radius: 8px;
+    }
+    .text-muted {
+      color: #a9a9a9 !important;
+    }
+
+    /* Full-Screen Overlay */
+    #loadingOverlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.8);
+      display: none; 
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .overlay-content {
+      text-align: center;
+      color: #fff;
+    }
+    .overlay-logo {
+      width: 100px;
+      height: 100px;
+      margin-bottom: 2rem;
+    }
+
+    /* Larger progress bar styling */
+    .overlay-progress {
+      width: 300px;
+      margin: 0 auto;
+    }
+    .overlay-progress .progress-bar {
+      transition: width 0.3s ease;
+    }
+  </style>
   </head>
   <body>
     <div class="container py-4">

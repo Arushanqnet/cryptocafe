@@ -467,55 +467,18 @@ def filter_articles_by_topics(articles, user_topics):
             filtered.append(a)
     return filtered
 
-# def generate_tts(article_obj: Article):
-#     """
-#     Generates a TTS script by calling OpenAI with the user-defined style.
-#     If 'tts_text' is already set, returns it.
-#     Otherwise, uses the article text to produce a short TTS summary.
-#     """
-#     if article_obj.tts_text:
-#         return article_obj.tts_text
 
-#     raw_text = (article_obj.text or "").strip()
-#     if not raw_text:
-#         article_obj.tts_text = "No content to speak."
-#         return article_obj.tts_text
-
-#     style = article_obj.tts_type or "How it influences current market prices"
-#     prompt = f"""
-#             Please create a youtube short reels (~30-45 seconds) voiceover summarizing the following article in a {style}.
-#             Keep it concise but natural. Include ONLY the voiceover script in your response.
-
-#             Article text:
-#             \"\"\"
-#             {raw_text}
-#             \"\"\"
-#                 """
-#     try:
-#         response = openai.ChatCompletion.create(
-#             model="gpt-4",
-#             messages=[
-#                 {"role": "system", "content": "You are a youtube short reels News narrator outputting a news voiceover as plain text."},
-#                 {"role": "user", "content": prompt}
-#             ],
-           
-#         )
-#         article_obj.tts_text = response.choices[0].message.content.strip()
-#     except Exception as e:
-#         print("OpenAI TTS error:", e)
-#         article_obj.tts_text = "Error generating TTS."
-
-#     return article_obj.tts_text
 def sanitize(entry):       
     sanitized_text = html.escape(entry)
-    
+
+    # Escape backslashes and double quotes for JSON safety
+    sanitized_text = sanitized_text.replace('\\', '\\\\').replace('"', '\\"')
+
     # Remove unnecessary quotes at the start and end
     if sanitized_text.startswith('"') and sanitized_text.endswith('"'):
         sanitized_text = sanitized_text[1:-1]
     
-    # Update the entry with sanitized text
-    entry = sanitized_text
-    return entry
+    return sanitized_text
 
 def generate_tts(article_obj: Article):
     """
@@ -545,7 +508,7 @@ def generate_tts(article_obj: Article):
         response =  client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": "You are a News narrator outputing news voiceover scripts"},
+            {"role": "system", "content": "You are a News narrator outputing news voiceover scripts as plain text"},
             {"role": "user", "content": prompt}
         ],
     )

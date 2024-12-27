@@ -4,169 +4,401 @@
     <meta charset="UTF-8" />
     <title>Onboarding - CryptoCafe</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
     <!-- Bootstrap CSS -->
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
     >
+    <!-- Font Awesome for icons (optional, but recommended) -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+      
+    />
 
     <style>
-        /* Overlay container to cover full screen */
-        #loadingOverlay {
-          position: fixed;
-          top: 0; left: 0;
-          width: 100%;
-          height: 100%;
-          background-color: rgba(0,0,0,0.7); /* semi-transparent black */
-          display: none; /* hidden by default */
-          justify-content: center;
-          align-items: center;
-          z-index: 9999; /* on top of everything */
-        }
-        .overlay-content {
-          text-align: center;
-          color: #fff;
-        }
-        .overlay-logo {
-          width: 100px;
-          height: 100px;
-          margin-bottom: 2rem;
-        }
-        /* Larger progress bar styling */
-        .overlay-progress {
-          width: 300px;
-          margin: 0 auto;
-        }
-        .overlay-progress .progress-bar {
-          transition: width 0.3s ease;
-        }
-      </style>
-  </head>
+      /* Overall body style: can adjust to your branding */
+      body {
+        background: #f5f6fa;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
 
+      h1, h4 {
+        color: #222f3e;
+      }
+      p {
+        color: #576574;
+      }
+
+      /* Card styling for topics */
+      .topic-card {
+        cursor: pointer;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        text-align: center;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        background-color: #fff;
+      }
+      .topic-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+      }
+      .topic-card.selected {
+        border: 2px solid #0d6efd; /* Bootstrap primary color */
+        background-color: #ecf5ff;
+      }
+
+      /* Icon sizing & spacing in the topic cards */
+      .topic-card i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
+
+      /* Overlay container to cover full screen */
+      #loadingOverlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.7); /* semi-transparent black */
+        display: none; /* hidden by default */
+        justify-content: center;
+        align-items: center;
+        z-index: 9999; /* on top of everything */
+      }
+      .overlay-content {
+        text-align: center;
+        color: #fff;
+      }
+      .overlay-logo {
+        width: 100px;
+        height: 100px;
+        margin-bottom: 2rem;
+      }
+      /* Larger progress bar styling */
+      .overlay-progress {
+        width: 300px;
+        margin: 0 auto;
+      }
+      .overlay-progress .progress-bar {
+        transition: width 0.3s ease;
+      }
+    </style>
+
+
+
+
+
+
+<link
+rel="stylesheet"
+href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap"
+>
+
+<style>
+/* Use a sleek, professional font */
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #06102B, #0D213E);
+  color: #ECECEC;
+}
+
+/* Navbar - create a gradient effect and add a subtle shadow */
+.navbar {
+  background: linear-gradient(135deg, #0077F5, #00CBFF);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+.navbar-brand {
+  font-weight: 600;
+}
+.nav-link {
+  color: #FFF !important;
+  margin-right: 0.5rem;
+}
+.nav-link:hover {
+  color: #F0F0F0 !important;
+}
+
+/* Container - add some spacing and subtle shadow */
+.container {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  padding: 2rem;
+}
+
+/* Headings inside container */
+h1, h2 {
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+/* Hero text for non-logged-in users */
+.hero-text {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.hero-text h1 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+.hero-text p {
+  font-size: 1.1rem;
+}
+
+/* Search form inputs */
+.form-control, .form-select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+.form-control:focus, .form-select:focus {
+  border-color: #00CBFF;
+  outline: none;
+  box-shadow: 0 0 5px rgba(0, 203, 255, 0.5);
+}
+
+/* Search button styling */
+.btn-primary {
+  background-color: #0069D9;
+  border: none;
+  transition: background-color 0.3s ease;
+}
+.btn-primary:hover {
+  background-color: #005bb5;
+}
+
+/* Card styling */
+.card {
+  background-color: #1B2945;
+  color: #fff;
+  border: none;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+}
+.card-img-top {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.card-text {
+  font-size: 0.95rem;
+  color: #d1d1d1;
+}
+.card-footer {
+  background-color: #152235;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+.text-muted {
+  color: #a9a9a9 !important;
+}
+
+/* Full-Screen Overlay */
+#loadingOverlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.8);
+  display: none; 
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+.overlay-content {
+  text-align: center;
+  color: #fff;
+}
+.overlay-logo {
+  width: 100px;
+  height: 100px;
+  margin-bottom: 2rem;
+}
+
+/* Larger progress bar styling */
+.overlay-progress {
+  width: 300px;
+  margin: 0 auto;
+}
+.overlay-progress .progress-bar {
+  transition: width 0.3s ease;
+}
+</style>
+  </head>
 
   <body>
     <div class="container py-4">
-      <h1>Welcome to CryptoCafe!</h1>
+      <h1 class="mb-3">Welcome to CryptoCafe!</h1>
       <p>We’d love to know your interests and how you want your reels to be narrated.</p>
-      
-      <form action="/save_onboarding" method="POST" class="row g-3"  onsubmit="showLoadingOverlay()" >
-        <!-- Card-based topic selection -->
+
+      <!-- Onboarding Form -->
+      <form action="/save_onboarding" method="POST" class="row g-3" onsubmit="showLoadingOverlay()">
+        
+        <!-- Topic selection with clickable cards (no visible checkboxes) -->
         <div class="col-12">
           <h4>Select the topics that interest you:</h4>
           <div class="row">
-            <!-- Example topics: BTC, ETH, DeFi, NFTs -->
-            <div class="col-md-3">
-              <div class="card mb-3">
-                <div class="card-body">
-                  <input type="checkbox" name="topics" value="BTC" id="topic-btc">
-                  <label for="topic-btc">Bitcoin (BTC)</label>
-                </div>
+            
+            <!-- Example: Bitcoin -->
+            <div class="col-md-4 mb-3">
+              <div class="card p-3 topic-card" data-topic="BTC" onclick="toggleTopic(this)">
+                <i class="fab fa-bitcoin" style="color: #f7931a;"></i>
+                <h5>Bitcoin (BTC)</h5>
+                <p class="text-muted mb-0">The original cryptocurrency</p>
               </div>
+              <!-- Hidden input to store selection; value will be set via JS -->
+              <input type="hidden" name="topics" value="" data-topic-input="BTC">
             </div>
-            <div class="col-md-3">
-              <div class="card mb-3">
-                <div class="card-body">
-                  <input type="checkbox" name="topics" value="ETH" id="topic-eth">
-                  <label for="topic-eth">Ethereum (ETH)</label>
-                </div>
+            
+            <!-- Example: Ethereum -->
+            <div class="col-md-4 mb-3">
+              <div class="card p-3 topic-card" data-topic="ETH" onclick="toggleTopic(this)">
+                <i class="fab fa-ethereum" style="color: #8c8c8c;"></i>
+                <h5>Ethereum (ETH)</h5>
+                <p class="text-muted mb-0">Smart contracts & DeFi hub</p>
               </div>
+              <input type="hidden" name="topics" value="" data-topic-input="ETH">
             </div>
-            <div class="col-md-3">
-              <div class="card mb-3">
-                <div class="card-body">
-                  <input type="checkbox" name="topics" value="DeFi" id="topic-defi">
-                  <label for="topic-defi">DeFi</label>
-                </div>
+            
+            <!-- Example: DeFi -->
+            <div class="col-md-4 mb-3">
+              <div class="card p-3 topic-card" data-topic="DeFi" onclick="toggleTopic(this)">
+                <i class="fas fa-university" style="color: #10ac84;"></i>
+                <h5>DeFi</h5>
+                <p class="text-muted mb-0">Decentralized finance solutions</p>
               </div>
+              <input type="hidden" name="topics" value="" data-topic-input="DeFi">
             </div>
-            <div class="col-md-3">
-              <div class="card mb-3">
-                <div class="card-body">
-                  <input type="checkbox" name="topics" value="NFTs" id="topic-nft">
-                  <label for="topic-nft">NFTs</label>
-                </div>
+            
+            <!-- Example: NFTs -->
+            <div class="col-md-4 mb-3">
+              <div class="card p-3 topic-card" data-topic="NFTs" onclick="toggleTopic(this)">
+                <i class="fas fa-images" style="color: #ff9f43;"></i>
+                <h5>NFTs</h5>
+                <p class="text-muted mb-0">Digital collectibles & art</p>
               </div>
+              <input type="hidden" name="topics" value="" data-topic-input="NFTs">
             </div>
-            <!-- Add more if you like -->
+
+            <!-- Extra example: Trading -->
+            <div class="col-md-4 mb-3">
+              <div class="card p-3 topic-card" data-topic="Trading" onclick="toggleTopic(this)">
+                <i class="fas fa-chart-line" style="color: #2e86de;"></i>
+                <h5>Trading</h5>
+                <p class="text-muted mb-0">Short/long-term strategies</p>
+              </div>
+              <input type="hidden" name="topics" value="" data-topic-input="Trading">
+            </div>
+
+            <!-- Extra example: Market Insights -->
+            <div class="col-md-4 mb-3">
+              <div class="card p-3 topic-card" data-topic="Market" onclick="toggleTopic(this)">
+                <i class="fas fa-search-dollar" style="color: #ff6b6b;"></i>
+                <h5>Market Insights</h5>
+                <p class="text-muted mb-0">Daily news & analysis</p>
+              </div>
+              <input type="hidden" name="topics" value="" data-topic-input="Market">
+            </div>
           </div>
         </div>
 
+        <!-- Narration style -->
         <div class="col-12">
-            <h4>How do you want CryptoCafe to narrate your reels?</h4>
-            <textarea name="style" class="form-control" rows="3" placeholder="Enter narration style here"></textarea>
-          </div>
-          
+          <h4>How do you want CryptoCafe to narrate your reels?</h4>
+          <textarea
+            name="style"
+            class="form-control"
+            rows="3"
+            placeholder="Enter narration style here"
+          ></textarea>
+        </div>
 
+        <!-- Submit button -->
         <div class="col-12">
-          <button class="btn btn-primary">Save Preferences</button>
+          <button class="btn btn-primary btn-lg px-5">Save Preferences</button>
         </div>
       </form>
     </div>
 
-     <!-- The Full-Screen Overlay -->
-     <div id="loadingOverlay">
-        <div class="overlay-content">
-          <!-- Replace with your own icon/logo -->
-          <img
-            class="overlay-logo"
-            src="https://via.placeholder.com/100x100.png?text=Logo"
-            alt="Loading Logo"
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay">
+      <div class="overlay-content">
+        <!-- Replace with your own icon/logo if desired -->
+        <img
+          class="overlay-logo"
+          src="https://via.placeholder.com/100x100.png?text=Logo"
+          alt="Loading Logo"
+        >
+        <div class="mb-3">Loading, please wait...</div>
+
+        <!-- Bootstrap progress bar -->
+        <div class="progress overlay-progress" style="height: 25px;">
+          <div
+            id="overlayProgressBar"
+            class="progress-bar progress-bar-striped progress-bar-animated bg-info"
+            role="progressbar"
+            style="width: 0%;"
+            aria-valuemin="0"
+            aria-valuemax="100"
           >
-          <div class="mb-3">Loading, please wait...</div>
-  
-          <!-- Bootstrap progress bar -->
-          <div class="progress overlay-progress" style="height: 25px;">
-            <div
-              id="overlayProgressBar"
-              class="progress-bar progress-bar-striped progress-bar-animated bg-info"
-              role="progressbar"
-              style="width: 0%;"
-              aria-valuemin="0"
-              aria-valuemax="100"
-            >
-              0%
-            </div>
+            0%
           </div>
         </div>
       </div>
-  
-      <!-- Bootstrap JS -->
-      <script
-        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
-      </script>
-  
-      <!-- JavaScript for showing/animating overlay -->
-      <script>
-        let overlayTimer = null;
-        let currentValue = 0;
-  
-        function showLoadingOverlay() {
-          // 1) Show the overlay
-          document.getElementById("loadingOverlay").style.display = "flex";
-  
-          // 2) Reset progress
-          currentValue = 0;
-          const pb = document.getElementById("overlayProgressBar");
-          pb.style.width = "0%";
-          pb.textContent = "0%";
-  
-          // 3) Start a timer to animate progress from 0% -> 80~90%
-          //    We'll let the final page load finish the rest.
-          overlayTimer = setInterval(() => {
-            if (currentValue < 90) {
-              currentValue += 2; // increment by 2
-              pb.style.width = currentValue + "%";
-              pb.textContent = currentValue + "%";
-            } else {
-              // Once we get to 90, we just hold.
-              clearInterval(overlayTimer);
-            }
-          }, 200); // update every 0.2s
-        }
-      </script>
+    </div>
+
     <!-- Bootstrap JS -->
     <script
       src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+    </script>
+
+    <script>
+      // Toggling the topic-card selection
+      function toggleTopic(card) {
+        const topic = card.dataset.topic;
+        const hiddenInput = document.querySelector(`input[data-topic-input="${topic}"]`);
+
+        card.classList.toggle("selected");
+        // If selected, store the topic in hidden input; if unselected, clear it
+        hiddenInput.value = card.classList.contains("selected") ? topic : "";
+      }
+
+      // Overlay progress logic
+      let overlayTimer = null;
+      let currentValue = 0;
+
+      function showLoadingOverlay() {
+        // Show the overlay
+        document.getElementById("loadingOverlay").style.display = "flex";
+        
+        // Reset progress
+        currentValue = 0;
+        const pb = document.getElementById("overlayProgressBar");
+        pb.style.width = "0%";
+        pb.textContent = "0%";
+
+        // Animate progress from 0% -> ~90%
+        overlayTimer = setInterval(() => {
+          if (currentValue < 90) {
+            currentValue += 2; // increment by 2
+            pb.style.width = currentValue + "%";
+            pb.textContent = currentValue + "%";
+          } else {
+            // Stop at 90%
+            clearInterval(overlayTimer);
+          }
+        }, 200); // update every 0.2s
+      }
     </script>
   </body>
 </html>

@@ -23,7 +23,7 @@
   >
 
   <style>
-    /* Fullscreen dark background */
+    /* Base page (dark theme, fullscreen) */
     html, body {
       margin: 0;
       padding: 0;
@@ -34,6 +34,7 @@
       overflow: hidden;
     }
 
+    /* Container for our “Reels” content */
     #reels-container {
       position: relative;
       width: 100vw;
@@ -46,11 +47,33 @@
       top: 0;
       left: 0;
     }
-    .canvas-container {
-      margin: 0 !important;
+    .canvas-container { margin: 0 !important; }
+
+    /* ---- TOP BAR (back arrow + branding) ---- */
+    .top-bar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 10;
+      cursor: pointer;
+      color: #fff;
+      font-size: 20px;
+      padding: 6px 10px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 4px;
+      transition: background 0.3s ease;
+    }
+    .top-bar:hover {
+      background: rgba(0,0,0,0.5);
+    }
+    .top-bar i {
+      font-size: 24px;
     }
 
-    /* Right-side icons (like, share, play/pause) */
+    /* ---- RIGHT-SIDE ICONS (like, share, play/pause) ---- */
     .right-icons {
       position: absolute;
       right: 15px;
@@ -73,7 +96,7 @@
       transform: scale(1.2);
     }
 
-    /* The bottom bar with date & swipe hint, reminiscent of Instagram Reels */
+    /* ---- BOTTOM BAR (date & small translucent gradient) ---- */
     .bottom-bar {
       position: absolute;
       bottom: 0;
@@ -88,12 +111,28 @@
       color: #ccc;
       font-size: 0.85rem;
     }
-    /* The date on the left, small text */
     .date-text {
       opacity: 0.9;
     }
+    /* “More Info” button on the right side of bottom bar */
+    .more-info-btn {
+      cursor: pointer;
+      color: #fff;
+      opacity: 0.85;
+      background: rgba(0,0,0,0.3);
+      padding: 4px 10px;
+      border-radius: 15px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.9rem;
+      transition: background 0.3s ease;
+    }
+    .more-info-btn:hover {
+      background: rgba(0,0,0,0.5);
+    }
 
-    /* Title & description in center with fade animations */
+    /* ---- CENTER TEXT (title/desc fade in) ---- */
     .center-text {
       position: absolute;
       top: 50%;
@@ -122,7 +161,6 @@
     .article-desc {
       animation-name: fadeFromRight;
     }
-
     @keyframes fadeFromLeft {
       0% { transform: translateX(-50px); opacity: 0; }
       100% { transform: translateX(0); opacity: 1; }
@@ -132,7 +170,30 @@
       100% { transform: translateX(0); opacity: 1; }
     }
 
-    /* The floating +1 heart animation when liked */
+    /* ---- SWIPE-UP INSTRUCTIONS ---- */
+    .swipe-up {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      text-align: center;
+    }
+    .swipe-up i {
+      display: block;
+      margin-bottom: 5px;
+      animation: swipe 2s infinite;
+    }
+    @keyframes swipe {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-10px);
+      }
+    }
+
+    /* ---- FLOATING +1 HEART ANIMATION WHEN LIKED ---- */
     .floating-heart {
       position: absolute;
       color: #ff2e63; /* bright pinkish/red color */
@@ -155,40 +216,231 @@
         opacity: 0;
       }
     }
-    .canvas-container{
-      justify-self: center;
-    }
 
-    /* Swipe-up instructions */
-    .swipe-up {
+    /* ---- BOTTOM OVERLAY / “PROFILE DRAWER” ---- */
+    .bottom-overlay {
       position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 14px;
-      text-align: center;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      /* Transparent-ish black background */
+      background: rgba(0,0,0,0.5);
+      border-top-left-radius: 15px;
+      border-top-right-radius: 15px;
+      box-shadow: 0 -3px 10px rgba(0,0,0,0.5);
+      transform: translateY(100%);
+      transition: transform 0.4s ease;
+      z-index: 999;
+      padding: 1rem;
+      backdrop-filter: blur(10px);
     }
-    .swipe-up i {
-      display: block;
-      margin-bottom: 5px;
-      animation: swipe 2s infinite;
+    .bottom-overlay.open {
+      transform: translateY(0);
     }
-    @keyframes swipe {
-      0%, 100% {
-        transform: translateY(0);
-      }
-      50% {
-        transform: translateY(-10px);
-      }
+    /* A small handle or close arrow on top for user to grab */
+    .bottom-overlay-handle {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .bottom-overlay-handle i {
+      cursor: pointer;
+      font-size: 24px;
+      color: #999;
+    }
+    /* Content inside the overlay */
+    .bottom-overlay-content {
+      color: #fff;
+    }
+    .profile-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 1rem;
+    }
+    .profile-pic {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #666;
+    }
+    .username {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+    .source-link a {
+      color: #0dcaf0;
+      text-decoration: underline;
+    }
+    .tts-text {
+      margin-top: 0.5rem;
+      color: #ddd;
+      line-height: 1.4;
+    }
+    .canvas-container{
+      justify-self: center!important;
     }
   </style>
+
+
+
+<link
+rel="stylesheet"
+href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap"
+>
+
+<style>
+/* Use a sleek, professional font */
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #06102B, #0D213E);
+  color: #ECECEC;
+}
+
+/* Navbar - create a gradient effect and add a subtle shadow */
+.navbar {
+  background: linear-gradient(135deg, #0077F5, #00CBFF);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+.navbar-brand {
+  font-weight: 600;
+}
+.nav-link {
+  color: #FFF !important;
+  margin-right: 0.5rem;
+}
+.nav-link:hover {
+  color: #F0F0F0 !important;
+}
+
+/* Container - add some spacing and subtle shadow */
+.container {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  padding: 2rem;
+}
+
+/* Headings inside container */
+h1, h2 {
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+/* Hero text for non-logged-in users */
+.hero-text {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.hero-text h1 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+.hero-text p {
+  font-size: 1.1rem;
+}
+
+/* Search form inputs */
+.form-control, .form-select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+.form-control:focus, .form-select:focus {
+  border-color: #00CBFF;
+  outline: none;
+  box-shadow: 0 0 5px rgba(0, 203, 255, 0.5);
+}
+
+/* Search button styling */
+.btn-primary {
+  background-color: #0069D9;
+  border: none;
+  transition: background-color 0.3s ease;
+}
+.btn-primary:hover {
+  background-color: #005bb5;
+}
+
+/* Card styling */
+.card {
+  background-color: #1B2945;
+  color: #fff;
+  border: none;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+}
+.card-img-top {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.card-text {
+  font-size: 0.95rem;
+  color: #d1d1d1;
+}
+.card-footer {
+  background-color: #152235;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+.text-muted {
+  color: #a9a9a9 !important;
+}
+
+/* Full-Screen Overlay */
+#loadingOverlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.8);
+  display: none; 
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+.overlay-content {
+  text-align: center;
+  color: #fff;
+}
+.overlay-logo {
+  width: 100px;
+  height: 100px;
+  margin-bottom: 2rem;
+}
+
+/* Larger progress bar styling */
+.overlay-progress {
+  width: 300px;
+  margin: 0 auto;
+}
+.overlay-progress .progress-bar {
+  transition: width 0.3s ease;
+}
+</style>
 </head>
 <body>
+
+  <!-- TOP BAR: “Back to home” arrow -->
+  <div class="top-bar" id="back-home-btn">
+    <i class="fas fa-arrow-left"></i>
+  </div>
+
   <div id="reels-container">
     <!-- Fullscreen Fabric canvas -->
     <canvas id="reels-canvas" width="360" height="640"></canvas>
 
-    <!-- Centered text overlay -->
+    <!-- Centered text overlay (title & description) -->
     <div class="center-text">
       <h2 class="article-title" id="title-overlay">Title</h2>
       <p class="article-desc" id="desc-overlay">Description content goes here</p>
@@ -201,9 +453,12 @@
       <i class="fas fa-play icon-btn" id="play-pause-icon" title="Play/Pause"></i>
     </div>
 
-    <!-- Bottom bar: date on left -->
+    <!-- Bottom bar: date on left, “More Info” on right -->
     <div class="bottom-bar">
       <div class="date-text" id="news-date">Thu, 26 Dec 2024 13:01:43 -0500</div>
+      <div class="more-info-btn" id="more-info-btn">
+        <i class="fas fa-info-circle"></i> More Info
+      </div>
     </div>
 
     <!-- Swipe-up instructions -->
@@ -212,6 +467,30 @@
       Swipe/Scroll up for more
     </div>
   </div>
+
+  <!-- BOTTOM OVERLAY (expanded info) -->
+  <div class="bottom-overlay" id="bottom-overlay">
+    <!-- Handle / close arrow -->
+    <div class="bottom-overlay-handle">
+      <i class="fas fa-chevron-down" id="overlay-close-btn"></i>
+    </div>
+    <div class="bottom-overlay-content">
+      <div class="profile-section">
+        <!-- Placeholder circle as a "profile pic" -->
+        <div class="profile-pic"></div>
+        <div class="username" id="overlay-username">CryptoCafe</div>
+      </div>
+      <div class="source-link">
+        <a href="#" id="source-url" target="_blank">View Source</a>
+      </div>
+      <div class="tts-text" id="tts-text-overlay">No TTS Text</div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+  </script>
 
   <script>
     // --------------- SETUP & DATA ---------------
@@ -223,6 +502,13 @@
     });
     canvas.skipTargetFind = true;
 
+    // We'll store references for a background "breathing" animation
+    canvas.bgScale = 1.0;             // current scale
+    canvas.bgScaleMin = 1.0;         // min scale
+    canvas.bgScaleMax = 1.05;        // max scale
+    canvas.bgScaleDir = 1;           // 1 = up, -1 = down
+    canvas.bgAnimSpeed = 0.0002;     // how fast to “breathe”
+
     // TTS
     let synth = window.speechSynthesis;
     let utterance = null;
@@ -232,12 +518,19 @@
     let isPaused = false;
 
     // DOM Refs
-    const titleOverlay  = document.getElementById('title-overlay');
-    const descOverlay   = document.getElementById('desc-overlay');
-    const dateEl        = document.getElementById('news-date');
-    const playPauseIcon = document.getElementById('play-pause-icon');
-    const likeBtn       = document.getElementById('like-btn');
-    const shareBtn      = document.getElementById('share-btn');
+    const titleOverlay    = document.getElementById('title-overlay');
+    const descOverlay     = document.getElementById('desc-overlay');
+    const dateEl          = document.getElementById('news-date');
+    const playPauseIcon   = document.getElementById('play-pause-icon');
+    const likeBtn         = document.getElementById('like-btn');
+    const shareBtn        = document.getElementById('share-btn');
+    const bottomOverlay   = document.getElementById('bottom-overlay');
+    const moreInfoBtn     = document.getElementById('more-info-btn');
+    const overlayCloseBtn = document.getElementById('overlay-close-btn');
+    const sourceUrl       = document.getElementById('source-url');
+    const ttsTextOverlay  = document.getElementById('tts-text-overlay');
+    const overlayUsername = document.getElementById('overlay-username');
+    const backHomeBtn     = document.getElementById('back-home-btn');
 
     // --------------- TTS ---------------
     function speakText(text) {
@@ -259,7 +552,7 @@
       );
       if (davidVoice) {
         utterance.voice = davidVoice;
-        utterance.lang = davidVoice.lang;
+        utterance.lang  = davidVoice.lang;
       } else {
         utterance.lang = "en-US";
       }
@@ -302,24 +595,35 @@
       descOverlay.style.animation  = 'fadeFromRight 1s forwards';
 
       const item = newsItems[index];
-      const { title, text, date, image_url, tts_text } = item;
+      const {
+        title       = "No Title",
+        text        = "No Description",
+        date        = "",
+        image_url   = "https://via.placeholder.com/360x640.png?text=No+Image",
+        tts_text    = "",
+        news_url  = "#",
+        username    = "CryptoCafe"
+      } = item;
 
-      titleOverlay.textContent = title || "No Title";
-      descOverlay.textContent  = text  || "No Description";
-      dateEl.textContent       = date  || "";
+      titleOverlay.textContent   = title;
+      descOverlay.textContent    = text;
+      dateEl.textContent         = date;
+      overlayUsername.textContent= username;
+      document.getElementById('source-url').href = news_url;
+      ttsTextOverlay.textContent = tts_text;
 
-      speakText(tts_text || "");
-
+      speakText(tts_text);
       await setBackgroundCover(image_url);
     }
 
-    // --------------- BG COVER ---------------
+    // --------------- BG COVER + “Breathe” ANIMATION ---------------
     function setBackgroundCover(imageUrl) {
       return new Promise((resolve) => {
         fabric.Image.fromURL(
           imageUrl,
           (img) => {
             if (!img) {
+              // Fallback if image fails to load
               fabric.Image.fromURL(
                 'https://via.placeholder.com/360x640.png?text=No+Image',
                 (placeholder) => {
@@ -339,10 +643,15 @@
     }
 
     function coverImage(imgObj) {
+      // Figure out base scale to fill entire canvas
       const scaleRatio = Math.max(
         canvas.width / imgObj.width,
         canvas.height / imgObj.height
       );
+      canvas.bgScaleMin = scaleRatio;
+      canvas.bgScaleMax = scaleRatio * 2.5;  // up to 5% bigger
+      canvas.bgScale    = scaleRatio;         // start scale
+
       imgObj.scaleX = scaleRatio;
       imgObj.scaleY = scaleRatio;
       imgObj.set({
@@ -351,13 +660,49 @@
         left: canvas.width / 2,
         top:  canvas.height / 2
       });
+
       canvas.setBackgroundImage(
         imgObj,
         canvas.renderAll.bind(canvas)
       );
+      canvas.backgroundImageObject = imgObj;
     }
 
-    // --------------- NAVIGATION ---------------
+    // The “breathe” effect: background gently zooms in/out
+    function animateBackground() {
+      // If no background is loaded yet, wait and re-check
+      if (!canvas.backgroundImageObject) {
+        requestAnimationFrame(animateBackground);
+        return;
+      }
+
+      // Slow scale in/out
+      if (canvas.bgScaleDir === 1) {
+        // Scaling up
+        canvas.bgScale += canvas.bgAnimSpeed;
+        if (canvas.bgScale >= canvas.bgScaleMax) {
+          canvas.bgScale = canvas.bgScaleMax;
+          canvas.bgScaleDir = -1;
+        }
+      } else {
+        // Scaling down
+        canvas.bgScale -= canvas.bgAnimSpeed;
+        if (canvas.bgScale <= canvas.bgScaleMin) {
+          canvas.bgScale = canvas.bgScaleMin;
+          canvas.bgScaleDir = 1;
+        }
+      }
+      // Apply scale to backgroundImageObject
+      canvas.backgroundImageObject.scaleX = canvas.bgScale;
+      canvas.backgroundImageObject.scaleY = canvas.bgScale;
+      canvas.renderAll();
+
+      requestAnimationFrame(animateBackground);
+    }
+    // Start the background animation loop
+    requestAnimationFrame(animateBackground);
+
+    // --------------- NAVIGATION (NEXT/PREV) ---------------
     function nextItem() {
       synth.cancel();
       currentIndex = (currentIndex + 1) % newsItems.length;
@@ -391,51 +736,47 @@
 
     // --------------- LIKE ANIMATION ---------------
     function showFloatingHeart(iconElem) {
-      // Create a span for the +1 heart
       const span = document.createElement('span');
       span.classList.add('floating-heart');
       span.textContent = '+1 ❤️';
-      // Position near the icon
       const rect = iconElem.getBoundingClientRect();
       span.style.left = (rect.x + rect.width / 2) + 'px';
       span.style.top  = (rect.y + rect.height / 2) + 'px';
       document.body.appendChild(span);
 
-      // After animation ends, remove from DOM
       span.addEventListener('animationend', () => {
         document.body.removeChild(span);
       });
     }
 
     // --------------- EVENT LISTENERS ---------------
-    // Init
+    // Initialize with first item
     showNewsItem(currentIndex);
 
+    // Play/Pause
     playPauseIcon.addEventListener('click', (e) => {
       e.stopPropagation();
       togglePlayPause();
     });
-
-    // Clicking outside the icons toggles TTS
-    document.getElementById('reels-container').addEventListener('click', (e) => {
-      if (e.target.classList.contains('icon-btn')) return;
-      togglePlayPause();
-    });
-
-    // Like button => show the +1 heart
+    // Like
     likeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       showFloatingHeart(likeBtn);
       console.log("Liked item:", currentIndex);
     });
-
-    // Share (dummy logic)
+    // Share
     shareBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       console.log("Share clicked for item:", currentIndex);
     });
+    // Clicking background => toggle TTS
+    document.getElementById('reels-container').addEventListener('click', (e) => {
+      // Don’t toggle TTS if clicked an icon or top bar
+      if (e.target.classList.contains('icon-btn') || e.target.closest('.top-bar')) return;
+      togglePlayPause();
+    });
 
-    // Swipe up/down
+    // Swipe up/down for next/prev
     let startY = null;
     window.addEventListener('touchstart', e => {
       startY = e.touches[0].clientY;
@@ -451,7 +792,6 @@
         startY = null;
       }
     });
-
     // Keyboard up/down
     window.addEventListener('keydown', e => {
       if (e.key === 'ArrowUp') {
@@ -460,20 +800,28 @@
         prevItem();
       }
     });
-
     // Scroll wheel
     let scrollTimeout = null;
     window.addEventListener('wheel', (e) => {
       if (scrollTimeout) return;
-      scrollTimeout = setTimeout(() => {
-        scrollTimeout = null;
-      }, 300);
+      scrollTimeout = setTimeout(() => { scrollTimeout = null; }, 300);
+      if (e.deltaY > 0) nextItem(); else prevItem();
+    });
 
-      if (e.deltaY > 0) {
-        nextItem();
-      } else {
-        prevItem();
-      }
+    // “Back to Home” arrow
+    backHomeBtn.addEventListener('click', () => {
+      // Change this to your actual home route if needed:
+      window.location.href = '/';
+    });
+
+    // Show/hide bottom overlay
+    moreInfoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      bottomOverlay.classList.add('open');
+    });
+    overlayCloseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      bottomOverlay.classList.remove('open');
     });
   </script>
 </body>

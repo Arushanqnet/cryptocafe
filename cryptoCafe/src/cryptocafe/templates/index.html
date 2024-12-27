@@ -4,23 +4,136 @@
     <meta charset="UTF-8" />
     <title>CryptoCafe - Home</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <!-- Bootstrap CSS -->
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
     >
+    <!-- Google Font (Poppins) -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap"
+    >
+
     <style>
-      /* Overlay container to cover full screen */
+      /* Use a sleek, professional font */
+      body {
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #06102B, #0D213E);
+        color: #ECECEC;
+      }
+
+      /* Navbar - create a gradient effect and add a subtle shadow */
+      .navbar {
+        background: linear-gradient(135deg, #0077F5, #00CBFF);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+      }
+      .navbar-brand {
+        font-weight: 600;
+      }
+      .nav-link {
+        color: #FFF !important;
+        margin-right: 0.5rem;
+      }
+      .nav-link:hover {
+        color: #F0F0F0 !important;
+      }
+
+      /* Container - add some spacing and subtle shadow */
+      .container {
+        margin-top: 2rem;
+        margin-bottom: 2rem;
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+        padding: 2rem;
+      }
+
+      /* Headings inside container */
+      h1, h2 {
+        font-weight: 600;
+        color: #FFFFFF;
+      }
+
+      /* Hero text for non-logged-in users */
+      .hero-text {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+      .hero-text h1 {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+      }
+      .hero-text p {
+        font-size: 1.1rem;
+      }
+
+      /* Search form inputs */
+      .form-control, .form-select {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: #fff;
+      }
+      .form-control:focus, .form-select:focus {
+        border-color: #00CBFF;
+        outline: none;
+        box-shadow: 0 0 5px rgba(0, 203, 255, 0.5);
+      }
+
+      /* Search button styling */
+      .btn-primary {
+        background-color: #0069D9;
+        border: none;
+        transition: background-color 0.3s ease;
+      }
+      .btn-primary:hover {
+        background-color: #005bb5;
+      }
+
+      /* Card styling */
+      .card {
+        background-color: #1B2945;
+        color: #fff;
+        border: none;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+      }
+      .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+      }
+      .card-img-top {
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+      }
+      .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+      .card-text {
+        font-size: 0.95rem;
+        color: #d1d1d1;
+      }
+      .card-footer {
+        background-color: #152235;
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+      }
+      .text-muted {
+        color: #a9a9a9 !important;
+      }
+
+      /* Full-Screen Overlay */
       #loadingOverlay {
         position: fixed;
         top: 0; left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(0,0,0,0.7); /* semi-transparent black */
-        display: none; /* hidden by default */
+        background-color: rgba(0,0,0,0.8);
+        display: none; 
         justify-content: center;
         align-items: center;
-        z-index: 9999; /* on top of everything */
+        z-index: 9999;
       }
       .overlay-content {
         text-align: center;
@@ -31,6 +144,7 @@
         height: 100px;
         margin-bottom: 2rem;
       }
+
       /* Larger progress bar styling */
       .overlay-progress {
         width: 300px;
@@ -42,7 +156,8 @@
     </style>
   </head>
   <body>
-    <nav class="navbar navbar-expand-md navbar-dark bg-dark">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-md">
       <div class="container-fluid">
         <a class="navbar-brand" href="#">CryptoCafe</a>
         <button
@@ -53,8 +168,9 @@
           aria-controls="navbarNav"
           aria-expanded="false"
           aria-label="Toggle navigation"
+          style="border: none"
         >
-          <span class="navbar-toggler-icon"></span>
+          <span class="navbar-toggler-icon" style="color: #fff"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
@@ -75,14 +191,26 @@
       </div>
     </nav>
 
+    <!-- Main Content Container -->
     <div class="container mt-4">
       {% if not user %}
-        <h1>Welcome to CryptoCafe</h1>
-        <p>Please <a href="/login">sign in with Google</a> to customize your news feed.</p>
+        <div class="hero-text">
+          <h1>Welcome to CryptoCafe</h1>
+          <p>Your go-to hub for the latest crypto news, curated just for you. 
+             Sign in to tailor your feed and start exploring!</p>
+        </div>
+        <p class="text-center">
+          Please <a href="/login" class="btn btn-primary">Sign in with Google</a> to customize your news feed.
+        </p>
       {% else %}
         <h1>Hello, {{ user.name }}!</h1>
-        <form action="/search" method="POST" class="row g-3 mb-4"  onsubmit="showLoadingOverlay()" >
-          <div class="col-md-6">
+        <form 
+          action="/search" 
+          method="POST" 
+          class="row g-3 mb-4" 
+          onsubmit="showLoadingOverlay()"
+        >
+          <div class="col-md-9">
             <input 
               type="text" 
               class="form-control" 
@@ -91,7 +219,8 @@
               required
             >
           </div>
-          <div class="col-md-3" hidden>
+          <!-- Hidden TTS type for future expansions -->
+          <div  hidden>
             <select class="form-select" name="tts_type">
               <option value="">(Use My Default Style)</option>
               <option value="default">Default TTS</option>
@@ -101,18 +230,20 @@
             </select>
           </div>
           <div class="col-md-3">
-            <button class="btn btn-primary w-100">Search &amp; Fetch</button>
+            <button class="btn btn-primary w-100">
+              Search &amp; Fetch
+            </button>
           </div>
         </form>
         <h2>Your Personalized Articles</h2>
       {% endif %}
 
       <!-- Card grid for articles -->
-      <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+      <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-3">
         {% for item in data %}
           <div class="col">
             <div 
-              class="card h-100 shadow-sm"
+              class="card h-100"
               onclick="location.href='/reels?index={{ loop.index0 }}';"
               style="cursor:pointer;"
             >
@@ -135,6 +266,7 @@
         {% endfor %}
       </div>
     </div>
+
     <!-- The Full-Screen Overlay -->
     <div id="loadingOverlay">
       <div class="overlay-content">
@@ -161,42 +293,44 @@
         </div>
       </div>
     </div>
+
     <!-- Bootstrap JS -->
     <script
       src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
     </script>
- <!-- JavaScript for showing/animating overlay -->
- <script>
-  let overlayTimer = null;
-  let currentValue = 0;
 
-  function showLoadingOverlay() {
-    // 1) Show the overlay
-    document.getElementById("loadingOverlay").style.display = "flex";
+    <!-- JavaScript for showing/animating overlay -->
+    <script>
+      let overlayTimer = null;
+      let currentValue = 0;
 
-    // 2) Reset progress
-    currentValue = 0;
-    const pb = document.getElementById("overlayProgressBar");
-    pb.style.width = "0%";
-    pb.textContent = "0%";
+      function showLoadingOverlay() {
+        // 1) Show the overlay
+        document.getElementById("loadingOverlay").style.display = "flex";
 
-    // 3) Start a timer to animate progress from 0% -> 80~90%
-    //    We'll let the final page load finish the rest.
-    overlayTimer = setInterval(() => {
-      if (currentValue < 90) {
-        currentValue += 2; // increment by 2
-        pb.style.width = currentValue + "%";
-        pb.textContent = currentValue + "%";
-      } else {
-        // Once we get to 90, we just hold.
-        clearInterval(overlayTimer);
+        // 2) Reset progress
+        currentValue = 0;
+        const pb = document.getElementById("overlayProgressBar");
+        pb.style.width = "0%";
+        pb.textContent = "0%";
+
+        // 3) Start a timer to animate progress from 0% -> ~90%
+        overlayTimer = setInterval(() => {
+          if (currentValue < 90) {
+            currentValue += 2;
+            pb.style.width = currentValue + "%";
+            pb.textContent = currentValue + "%";
+          } else {
+            clearInterval(overlayTimer);
+          }
+        }, 200);
       }
-    }, 200); // update every 0.2s
-  }
-</script>
+    </script>
+
+    <!-- Cancel any pending speech (if used elsewhere in the app) -->
     <script>
       let synth = window.speechSynthesis;
-        synth.cancel();
+      synth.cancel();
     </script>
   </body>
 </html>
