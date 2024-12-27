@@ -1,8 +1,8 @@
 import asyncio
 import html
 import os
-import json
 import re
+import json
 import requests
 
 from quart import (
@@ -22,10 +22,6 @@ load_dotenv()
 # Initialize OpenAI
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-# ---------------------------------------------------------------------
-# CONFIG
-# ---------------------------------------------------------------------
-
 
 # ---------------------------------------------------------------------
 # CONFIG
@@ -42,26 +38,21 @@ os.makedirs('static/images', exist_ok=True)
 
 # Google CSE
 GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
-GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
+GOOGLE_CSE_CX      = os.getenv("GOOGLE_CSE_CX", "")
 
 # Database
 Base = declarative_base()
 
 class User(Base):
     """
-    Stores each user's account from Google:
-      - google_id -> 'sub' from Google OIDC
-      - email
-      - name
-      - picture
-      - topics -> comma-separated topics (onboarding)
-      - style  -> string for TTS style
+    Store each user's account, using email as the primary key.
+    We still store google_id if needed, but it is no longer the primary key.
     """
     __tablename__ = "users"
 
-    id        = Column(Integer, primary_key=True)
-    google_id = Column(String, unique=True, nullable=False)
-    email     = Column(String, nullable=True)
+    # Use email as the primary key
+    email     = Column(String, primary_key=True, unique=True, nullable=False)
+    google_id = Column(String, unique=True, nullable=True)
     name      = Column(String, nullable=True)
     picture   = Column(String, nullable=True)
     topics    = Column(String, nullable=True)  # e.g. "BTC,ETH"
@@ -71,30 +62,33 @@ class User(Base):
 class Article(Base):
     """
     Example DB model for news articles.
+    Each article is tied to a specific user, via owner_email.
     """
     __tablename__ = "articles"
 
-    id          = Column(Integer, primary_key=True)
-    news_url    = Column(String, unique=True, nullable=False)
-    image_path  = Column(String, nullable=True)
-    title       = Column(String, nullable=True)
-    text        = Column(Text, nullable=True)
-    source_name = Column(String, nullable=True)
-    date        = Column(String, nullable=True)
-    topics      = Column(String, nullable=True)   # e.g. "BTC,ETH"
-    sentiment   = Column(String, nullable=True)
-    tickers     = Column(String, nullable=True)
-    tts_text    = Column(Text, nullable=True)
-    tts_type    = Column(String, nullable=True)
+    id           = Column(Integer, primary_key=True)
+    owner_email  = Column(String, nullable=False)  # which user owns this article
+    news_url     = Column(String, nullable=False)
+    image_path   = Column(String, nullable=True)
+    title        = Column(String, nullable=True)
+    text         = Column(Text, nullable=True)
+    source_name  = Column(String, nullable=True)
+    date         = Column(String, nullable=True)
+    topics       = Column(String, nullable=True)   # e.g. "BTC,ETH"
+    sentiment    = Column(String, nullable=True)
+    tickers      = Column(String, nullable=True)
+    tts_text     = Column(Text, nullable=True)
+    tts_type     = Column(String, nullable=True)
 
+# Create the SQLite DB if it doesn't exist yet
 db_file = "sqlite:///articles.db"
 engine = create_engine(db_file, echo=False)
 SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(engine)
 
 # Google OAuth Endpoints
-GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_AUTH_URL    = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL   = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
 GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
@@ -163,18 +157,20 @@ async def auth_callback():
 
         db_sess = SessionLocal()
         existing_user = db_sess.execute(
-            select(User).where(User.google_id == google_id)
+            select(User).where(User.email == email)
         ).scalar_one_or_none()
 
         if existing_user:
             # update if needed
-            existing_user.email   = email
-            existing_user.name    = name
-            existing_user.picture = picture
+            existing_user.google_id = google_id
+            existing_user.name      = name
+            existing_user.picture   = picture
             db_sess.commit()
-            session["user_id"] = existing_user.id
 
-            # if user has no topics or style => onboarding
+            # Store email in session
+            session["user_email"] = existing_user.email
+
+            # If user has no topics or style => onboarding
             if not existing_user.topics or not existing_user.style:
                 db_sess.close()
                 return redirect(url_for("onboarding"))
@@ -184,8 +180,8 @@ async def auth_callback():
         else:
             # create new user => need onboarding
             new_user = User(
-                google_id=google_id,
                 email=email,
+                google_id=google_id,
                 name=name,
                 picture=picture,
                 topics="",  # not set yet
@@ -193,7 +189,7 @@ async def auth_callback():
             )
             db_sess.add(new_user)
             db_sess.commit()
-            session["user_id"] = new_user.id
+            session["user_email"] = new_user.email
             db_sess.close()
             return redirect(url_for("onboarding"))
 
@@ -203,7 +199,7 @@ async def auth_callback():
 
 @app.route("/logout")
 async def logout():
-    session.pop("user_id", None)
+    session.pop("user_email", None)
     return redirect(url_for("index"))
 
 
@@ -216,8 +212,8 @@ async def onboarding():
     Show a page that lets user pick topics + style (TTS).
     If user not logged in, redirect to /.
     """
-    user_id = session.get("user_id")
-    if not user_id:
+    user_email = session.get("user_email")
+    if not user_email:
         return redirect(url_for("index"))
     return await render_template("onboarding.html")
 
@@ -227,11 +223,11 @@ async def save_onboarding():
     """
     1) Save the user's chosen topics + style.
     2) For each chosen topic, fetch articles via Google CSE.
-    3) Upsert them into DB with TTS text.
+    3) Upsert them into DB with TTS text, belonging to this user.
     4) Redirect to the homepage.
     """
-    user_id = session.get("user_id")
-    if not user_id:
+    user_email = session.get("user_email")
+    if not user_email:
         return redirect(url_for("index"))
 
     form_data = await request.form
@@ -243,7 +239,7 @@ async def save_onboarding():
 
     db_sess = SessionLocal()
     user = db_sess.execute(
-        select(User).where(User.id == user_id)
+        select(User).where(User.email == user_email)
     ).scalar_one_or_none()
     if user:
         user.topics = topics_str
@@ -251,17 +247,15 @@ async def save_onboarding():
         db_sess.commit()
 
         # 2) For each topic, fetch articles from Google CSE
-        #    You can decide how many articles per topic you want to fetch:
         for topic in topics_list:
-            # skip empty
             if not topic.strip():
                 continue
-            
-            # fetch e.g. 3-5 articles for each topic
+
+            # fetch e.g. 3 articles for each topic
             results = google_cse_search(topic.strip(), limit=3)
-            # upsert them
+            # upsert them for this user
             for r in results:
-                upsert_article(db_sess, r, topics=user.topics, tts_type=user.style)
+                upsert_article(db_sess, r, user_email=user.email, topics=user.topics, tts_type=user.style)
 
         db_sess.commit()
     db_sess.close()
@@ -274,13 +268,13 @@ async def settings():
     """
     Show a form to update topics + style (like onboarding, but user can do it anytime).
     """
-    user_id = session.get("user_id")
-    if not user_id:
+    user_email = session.get("user_email")
+    if not user_email:
         return redirect(url_for("index"))
 
     db_sess = SessionLocal()
     user = db_sess.execute(
-        select(User).where(User.id == user_id)
+        select(User).where(User.email == user_email)
     ).scalar_one_or_none()
     db_sess.close()
 
@@ -291,10 +285,9 @@ async def settings():
 async def save_settings():
     """
     Similar to save_onboarding, but for the settings page.
-    (Optionally, you could also fetch new articles here if topics change.)
     """
-    user_id = session.get("user_id")
-    if not user_id:
+    user_email = session.get("user_email")
+    if not user_email:
         return redirect(url_for("index"))
 
     form_data = await request.form
@@ -304,15 +297,12 @@ async def save_settings():
 
     db_sess = SessionLocal()
     user = db_sess.execute(
-        select(User).where(User.id == user_id)
+        select(User).where(User.email == user_email)
     ).scalar_one_or_none()
     if user:
         user.topics = topics_str
         user.style  = style
         db_sess.commit()
-
-        # If desired, refetch or update articles on settings change as well.
-        # (Omitted by default.)
     db_sess.close()
 
     return redirect(url_for("index"))
@@ -386,24 +376,27 @@ def download_image(image_url: str, filename: str) -> str:
     return local_path
 
 
-def upsert_article(session, data: dict, topics: str, tts_type: str = "default"):
+def upsert_article(db_sess, data: dict, user_email: str, topics: str, tts_type: str = "default"):
     """
-    Insert or update an Article record.
+    Insert or update an Article record for a specific user (owner_email).
     Download its image (if needed) and generate TTS text.
     """
     news_url = data.get("news_url", "").strip()
     if not news_url:
         return None
 
-    existing = session.execute(
-        select(Article).where(Article.news_url == news_url)
+    # See if article with same url + owner_email already exists
+    existing = db_sess.execute(
+        select(Article)
+        .where(Article.owner_email == user_email)
+        .where(Article.news_url == news_url)
     ).scalar_one_or_none()
 
     if existing:
         article = existing
     else:
-        article = Article(news_url=news_url)
-        session.add(article)
+        article = Article(owner_email=user_email, news_url=news_url)
+        db_sess.add(article)
 
     article.title       = data.get("title", "")
     article.text        = data.get("text", "")
@@ -418,6 +411,7 @@ def upsert_article(session, data: dict, topics: str, tts_type: str = "default"):
     if image_url:
         filename = f"{abs(hash(image_url))}.jpg"
         local_path = download_image(image_url, filename)
+        # store the relative path so you can serve it
         article.image_path = "/" + local_path
     else:
         article.image_path = "/static/images/default.jpg"
@@ -432,6 +426,7 @@ def article_to_dict(article: Article):
     splitting topics/tickers into lists for convenience.
     """
     return {
+        "owner_email": article.owner_email,
         "news_url":    article.news_url,
         "image_url":   article.image_path,
         "title":       article.title,
@@ -446,39 +441,15 @@ def article_to_dict(article: Article):
     }
 
 
-def filter_articles_by_topics(articles, user_topics):
-    """
-    If user has some comma-separated topics, let's only show articles
-    that match at least one of those topics.
-    This is naive; refine if needed.
-    """
-    if not user_topics.strip():
-        return articles  # no filtering
-
-    topic_list = [t.strip().lower() for t in user_topics.split(",") if t.strip()]
-    if not topic_list:
-        return articles
-
-    filtered = []
-    for a in articles:
-        article_topic_list = [t.strip().lower() for t in (a.topics or "").split(",") if t.strip()]
-        # if there's any overlap
-        if set(topic_list).intersection(set(article_topic_list)):
-            filtered.append(a)
-    return filtered
-
-
-def sanitize(entry):       
+def sanitize(entry):
     sanitized_text = html.escape(entry)
-
     # Escape backslashes and double quotes for JSON safety
     sanitized_text = sanitized_text.replace('\\', '\\\\').replace('"', '\\"')
-
     # Remove unnecessary quotes at the start and end
     if sanitized_text.startswith('"') and sanitized_text.endswith('"'):
         sanitized_text = sanitized_text[1:-1]
-    
     return sanitized_text
+
 
 def generate_tts(article_obj: Article):
     """
@@ -496,37 +467,29 @@ def generate_tts(article_obj: Article):
 
     style = article_obj.tts_type or "How it influences current market rates"
     prompt = f"""
-            Please create a youtube short reels script (~30-45 seconds) voiceover summarizing the following article in a {style}.
+            Please create a short YouTube Reels-style voiceover script (~30-45 seconds) summarizing the following article in a {style}.
             Keep it concise but natural. Include ONLY the voiceover script in your response.
 
             Article text:
             \"\"\"
             {raw_text}
             \"\"\"
-                """
+    """
     try:
-        response =  client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": "You are a News narrator outputing news voiceover scripts as plain text"},
-            {"role": "user", "content": prompt}
-        ],
-    )
-        # FIX: Extract content string and strip it
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a News narrator outputting news voiceover scripts as plain text."},
+                {"role": "user", "content": prompt}
+            ],
+        )
         ssml_output = response.choices[0].message.content.strip()
-        # e.g. if you had GPT:
-        # prompt = f"Please create a {style} TTS script for the following article: {raw_text}"
-        # response = ...
         article_obj.tts_text = sanitize(ssml_output)
-
-        # For demonstration:
-
         return article_obj.tts_text
     except Exception as e:
         print("OpenAI TTS error:", e)
         article_obj.tts_text = "Error generating TTS."
-
-    return article_obj.tts_text
+        return article_obj.tts_text
 
 
 # ---------------------------------------------------------------------
@@ -535,24 +498,24 @@ def generate_tts(article_obj: Article):
 @app.route("/")
 async def index():
     """
-    If user not logged in => show sign in button
+    If user not logged in => show sign-in button
     If user logged in => 
        - if user missing topics/style => redirect to /onboarding
        - else => show articles & search
     """
-    user_id = session.get("user_id")
-    if not user_id:
+    user_email = session.get("user_email")
+    if not user_email:
         return await render_template("index.html", user=None, data=[])
 
     db_sess = SessionLocal()
     db_user = db_sess.execute(
-        select(User).where(User.id == user_id)
+        select(User).where(User.email == user_email)
     ).scalar_one_or_none()
 
     if not db_user:
         # no user found => log them out
         db_sess.close()
-        session.pop("user_id", None)
+        session.pop("user_email", None)
         return await render_template("index.html", user=None, data=[])
 
     # if user has no topics or style => onboard them
@@ -560,19 +523,13 @@ async def index():
         db_sess.close()
         return redirect(url_for("onboarding"))
 
-    # If they do have topics/style, fetch articles
-    user_topics = set(db_user.topics.split(","))
-    all_articles = db_sess.execute(select(Article)).scalars().all()
+    # Fetch only this user's articles
+    all_articles = db_sess.execute(
+        select(Article).where(Article.owner_email == db_user.email)
+    ).scalars().all()
     db_sess.close()
 
-    # filter articles that match at least one of the user topics
-    filtered = []
-    for a in all_articles:
-        art_topics = set((a.topics or "").split(","))
-        if user_topics & art_topics:
-            filtered.append(a)
-
-    display_data = [article_to_dict(a) for a in filtered]
+    display_data = [article_to_dict(a) for a in all_articles]
     return await render_template("index.html", user=db_user, data=display_data)
 
 
@@ -582,11 +539,11 @@ async def do_search():
     1) Check that the user is logged in
     2) Get the query from form
     3) Call google CSE
-    4) Upsert top results into DB
+    4) Upsert top results into DB (with owner_email = user's email)
     5) Return to home
     """
-    user_id = session.get("user_id")
-    if not user_id:
+    user_email = session.get("user_email")
+    if not user_email:
         return redirect(url_for("index"))
 
     form_data = await request.form
@@ -598,8 +555,11 @@ async def do_search():
 
     db_sess = SessionLocal()
     db_user = db_sess.execute(
-        select(User).where(User.id == user_id)
+        select(User).where(User.email == user_email)
     ).scalar_one_or_none()
+    if not db_user:
+        db_sess.close()
+        return redirect(url_for("index"))
 
     # If user didn't pick a new TTS style, fallback to what's in DB
     final_tts_style = tts_type or (db_user.style or "default")
@@ -607,8 +567,15 @@ async def do_search():
     # Google search
     results = google_cse_search(query, limit=4)
 
+    # Upsert articles for this user
     for r in results:
-        upsert_article(db_sess, r, topics=db_user.topics, tts_type=final_tts_style)
+        upsert_article(
+            db_sess, 
+            data=r, 
+            user_email=db_user.email, 
+            topics=db_user.topics, 
+            tts_type=final_tts_style
+        )
 
     db_sess.commit()
     db_sess.close()
@@ -622,9 +589,16 @@ async def reels():
     Reels-based view: read from DB, optional ?index= param
     Just a sample page that can show a reel-like UI
     """
+    user_email = session.get("user_email")
+    if not user_email:
+        return redirect(url_for("index"))
+
     article_index = request.args.get("index", 0, type=int)
     db_sess = SessionLocal()
-    all_articles = db_sess.execute(select(Article)).scalars().all()
+    # Only fetch this user's articles
+    all_articles = db_sess.execute(
+        select(Article).where(Article.owner_email == user_email)
+    ).scalars().all()
     db_sess.close()
 
     data = [article_to_dict(a) for a in all_articles]
@@ -641,5 +615,4 @@ def run():
 
 
 if __name__ == "__main__":
-    # Using asyncio.run(...) for Quart
     asyncio.run(app.run(debug=True))
