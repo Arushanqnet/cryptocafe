@@ -87,8 +87,8 @@ SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(engine)
 
 # Google OAuth Endpoints
-GOOGLE_AUTH_URL    = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL   = "https://oauth2.googleapis.com/token"
+GOOGLE_AUTH_URL     = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL    = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
 GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
@@ -246,12 +246,11 @@ async def save_onboarding():
         user.style  = style
         db_sess.commit()
 
-        # 2) For each topic, fetch articles from Google CSE
+        # For each topic, fetch articles from Google CSE
         for topic in topics_list:
             if not topic.strip():
                 continue
 
-            # fetch e.g. 3 articles for each topic
             results = google_cse_search(topic.strip(), limit=3)
             # upsert them for this user
             for r in results:
@@ -380,6 +379,8 @@ def upsert_article(db_sess, data: dict, user_email: str, topics: str, tts_type: 
     """
     Insert or update an Article record for a specific user (owner_email).
     Download its image (if needed) and generate TTS text.
+
+    Returns the Article object so we can track its ID if desired.
     """
     news_url = data.get("news_url", "").strip()
     if not news_url:
@@ -426,6 +427,7 @@ def article_to_dict(article: Article):
     splitting topics/tickers into lists for convenience.
     """
     return {
+        "id":          article.id,
         "owner_email": article.owner_email,
         "news_url":    article.news_url,
         "image_url":   article.image_path,
@@ -502,10 +504,12 @@ async def index():
     If user logged in => 
        - if user missing topics/style => redirect to /onboarding
        - else => show articles & search
+         - show newly searched articles on top (if any)
+         - show older existing articles after
     """
     user_email = session.get("user_email")
     if not user_email:
-        return await render_template("index.html", user=None, data=[])
+        return await render_template("index.html", user=None, new_data=[], old_data=[])
 
     db_sess = SessionLocal()
     db_user = db_sess.execute(
@@ -516,21 +520,46 @@ async def index():
         # no user found => log them out
         db_sess.close()
         session.pop("user_email", None)
-        return await render_template("index.html", user=None, data=[])
+        return await render_template("index.html", user=None, new_data=[], old_data=[])
 
     # if user has no topics or style => onboard them
     if not db_user.topics or not db_user.style:
         db_sess.close()
         return redirect(url_for("onboarding"))
 
-    # Fetch only this user's articles
+    # -----------------------------------------------------------------
+    # 1) Fetch only this user's articles
+    # 2) We'll separate them into newly searched articles vs older ones
+    # -----------------------------------------------------------------
     all_articles = db_sess.execute(
         select(Article).where(Article.owner_email == db_user.email)
     ).scalars().all()
+
+    # # ADDED: pop any newly inserted IDs from session
+    new_article_ids = session.pop("new_article_ids", [])
+
+    new_articles = []
+    old_articles = []
+
+    # Split articles into new vs. old
+    for a in all_articles:
+        if a.id in new_article_ids:
+            new_articles.append(a)
+        else:
+            old_articles.append(a)
+
     db_sess.close()
 
-    display_data = [article_to_dict(a) for a in all_articles]
-    return await render_template("index.html", user=db_user, data=display_data)
+    # Convert to dictionary for template
+    new_data = [article_to_dict(a) for a in new_articles]
+    old_data = [article_to_dict(a) for a in old_articles]
+
+    return await render_template(
+        "index.html",
+        user=db_user,
+        new_data=new_data,
+        old_data=old_data
+    )
 
 
 @app.route("/search", methods=["POST"])
@@ -540,7 +569,8 @@ async def do_search():
     2) Get the query from form
     3) Call google CSE
     4) Upsert top results into DB (with owner_email = user's email)
-    5) Return to home
+    5) Store those new article IDs in session so we can display them on top
+    6) Return to home
     """
     user_email = session.get("user_email")
     if not user_email:
@@ -567,18 +597,25 @@ async def do_search():
     # Google search
     results = google_cse_search(query, limit=4)
 
-    # Upsert articles for this user
+    # ADDED: track newly inserted article IDs
+    new_ids = []
     for r in results:
-        upsert_article(
+        article_obj = upsert_article(
             db_sess, 
             data=r, 
             user_email=db_user.email, 
             topics=db_user.topics, 
             tts_type=final_tts_style
         )
+        if article_obj:
+            db_sess.flush()  # ensure article_obj.id is populated
+            new_ids.append(article_obj.id)
 
     db_sess.commit()
     db_sess.close()
+
+    # Store newly inserted IDs in session so we can show them first
+    session["new_article_ids"] = new_ids
 
     return redirect(url_for("index"))
 
