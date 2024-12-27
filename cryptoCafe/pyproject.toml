@@ -7,9 +7,13 @@ readme = "README.md"
 packages = [{include = "cryptocafe", from = "src"}]
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "3.10.11"
 quart = "^0.20.0"
 requests = "^2.32.3"
+openai = "^1.58.1"
+sqlalchemy = "^2.0.36"
+python-dotenv = "^1.0.1"
+authlib = {extras = ["quart"], version = "^1.4.0"}
 
 [tool.poetry.scripts]
 start = "cryptocafe:run"

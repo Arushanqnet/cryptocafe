@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Settings - CryptoCafe</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Bootstrap CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    >
+  </head>
+  <body>
+    <div class="container py-4">
+      <h1>Settings</h1>
+      <p>Update your interests and narration style anytime.</p>
+      
+      {% if user %}
+        <!-- Pre-check checkboxes for user's current topics, if you'd like -->
+        {% set current_topics = user.topics.split(',') if user.topics else [] %}
+        
+        <form action="/save_settings" method="POST" class="row g-3">
+          <div class="col-12">
+            <h4>Your Topics:</h4>
+            <div class="row">
+              <div class="col-md-3">
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <input
+                      type="checkbox"
+                      name="topics"
+                      value="BTC"
+                      id="topic-btc"
+                      {% if 'BTC' in current_topics %}checked{% endif %}
+                    >
+                    <label for="topic-btc">Bitcoin (BTC)</label>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <input
+                      type="checkbox"
+                      name="topics"
+                      value="ETH"
+                      id="topic-eth"
+                      {% if 'ETH' in current_topics %}checked{% endif %}
+                    >
+                    <label for="topic-eth">Ethereum (ETH)</label>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <input
+                      type="checkbox"
+                      name="topics"
+                      value="DeFi"
+                      id="topic-defi"
+                      {% if 'DeFi' in current_topics %}checked{% endif %}
+                    >
+                    <label for="topic-defi">DeFi</label>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <input
+                      type="checkbox"
+                      name="topics"
+                      value="NFTs"
+                      id="topic-nft"
+                      {% if 'NFTs' in current_topics %}checked{% endif %}
+                    >
+                    <label for="topic-nft">NFTs</label>
+                  </div>
+                </div>
+              </div>
+              <!-- Add any others you want -->
+            </div>
+          </div>
+          
+          <div class="col-12">
+            <h4>Narration Style:</h4>
+            <textarea
+              name="style"
+              class="form-control"
+              rows="3"
+              placeholder="Enter your preferred narration style here"
+            >{{ user.style }}</textarea>
+          </div>
+          
+          <div class="col-12">
+            <button class="btn btn-primary">Save Settings</button>
+          </div>
+        </form>
+      {% else %}
+        <p>No user is logged in. <a href="/login">Sign in</a></p>
+      {% endif %}
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+    </script>
+  </body>
+</html>

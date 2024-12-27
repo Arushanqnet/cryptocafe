@@ -2,101 +2,166 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Crypto News - Reels</title>
+  <title>Crypto News - Reels (Instagram-Style with Animations)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Bootstrap CSS for base styling -->
+
+  <!-- Bootstrap CSS -->
   <link
     rel="stylesheet"
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
   >
+
   <!-- Fabric.js library -->
   <script
     src="https://cdn.jsdelivr.net/npm/fabric@5.2.4/dist/fabric.min.js">
   </script>
+
   <!-- Font Awesome for icons -->
- 
+  <link
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    rel="stylesheet"
+  >
 
-  
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
-
-  <!-- Custom CSS -->
   <style>
-    body {
+    /* Fullscreen dark background */
+    html, body {
       margin: 0;
       padding: 0;
-      overflow: hidden;
+      height: 100%;
+      background-color: #111;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #000;
       color: #fff;
+      overflow: hidden;
     }
+
     #reels-container {
       position: relative;
       width: 100vw;
       height: 100vh;
-      
     }
 
-    .canvas-container{
-        justify-self: center !important;
-    }
+    /* Fabric canvas covers entire container */
     #reels-canvas {
       position: absolute;
       top: 0;
       left: 0;
     }
-    /* Overlay UI elements */
-    .overlay {
+    .canvas-container {
+      margin: 0 !important;
+    }
+
+    /* Right-side icons (like, share, play/pause) */
+    .right-icons {
       position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      padding: 20px;
-      background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-      box-sizing: border-box;
-    }
-    .profile-section {
-      display: flex;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    .profile-pic {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background-color: #ccc;
-      margin-right: 10px;
-    }
-    .profile-name {
-      font-weight: bold;
-    }
-    .icons-section {
-      position: absolute;
-      right: 20px;
+      right: 15px;
       bottom: 100px;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 20px;
+      z-index: 5;
     }
     .icon-btn {
       color: #fff;
-      font-size: 28px;
-      text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+      font-size: 26px;
       cursor: pointer;
+      transition: transform 0.2s ease;
+      text-shadow: 0 0 10px rgba(0,0,0,0.5);
+      position: relative; /* for the heart +1 animation */
     }
-    .music-bar {
+    .icon-btn:hover {
+      transform: scale(1.2);
+    }
+
+    /* The bottom bar with date & swipe hint, reminiscent of Instagram Reels */
+    .bottom-bar {
       position: absolute;
-      bottom: 80px;
-      left: 20px;
+      bottom: 0;
+      left: 0;
+      width: 100%;
       display: flex;
       align-items: center;
-      font-size: 14px;
+      justify-content: space-between;
+      padding: 0.5rem 1rem;
+      background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+      z-index: 5;
+      color: #ccc;
+      font-size: 0.85rem;
     }
-    .music-bar i {
-      margin-right: 10px;
+    /* The date on the left, small text */
+    .date-text {
+      opacity: 0.9;
     }
-    /* Swipe indicator */
-    .swipe-up {
+    /* The swipe hint on the right, small text */
+    .swipe-hint {
+      opacity: 0.7;
+    }
+
+    /* Title & description in center with fade from sides. */
+    .center-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 80%;
+      max-width: 400px;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 4;
+    }
+    .article-title, .article-desc {
+      background: rgba(0,0,0,0.5);
+      border-radius: 8px;
+      margin: 0.5rem auto;
+      color: #fff;
+      padding: 0.5rem 1rem;
+      display: inline-block;
+      max-width: 100%;
+      animation-duration: 1s;
+      animation-fill-mode: forwards;
+      opacity: 0;
+    }
+    .article-title {
+      animation-name: fadeFromLeft;
+    }
+    .article-desc {
+      animation-name: fadeFromRight;
+    }
+
+    @keyframes fadeFromLeft {
+      0% { transform: translateX(-50px); opacity: 0; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes fadeFromRight {
+      0% { transform: translateX(50px); opacity: 0; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+
+    /* The floating +1 heart animation when liked */
+    .floating-heart {
+      position: absolute;
+      color: #ff2e63; /* bright pinkish/red color */
+      font-weight: bold;
+      pointer-events: none; /* ignore clicks */
+      opacity: 1;
+      animation: floatUp 1s forwards ease;
+      font-size: 1rem;
+    }
+    @keyframes floatUp {
+      0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: translateY(-30px) scale(1.3);
+      }
+      100% {
+        transform: translateY(-60px) scale(0.8);
+        opacity: 0;
+      }
+    }
+
+      /* Swipe-up instructions */
+      .swipe-up {
       position: absolute;
       bottom: 20px;
       left: 50%;
@@ -120,299 +185,271 @@
   </style>
 </head>
 <body>
-    
   <div id="reels-container">
+    <!-- Fullscreen Fabric canvas -->
     <canvas id="reels-canvas" width="360" height="640"></canvas>
-    <!-- Overlay UI elements -->
-    <div class="overlay">
-      <div class="profile-section">
-        <div class="profile-pic"></div>
-        <div class="profile-name">CryptoDailyNews</div>
+
+    <!-- Centered text overlay -->
+    <div class="center-text">
+      <h2 class="article-title" id="title-overlay">Title</h2>
+      <p class="article-desc" id="desc-overlay">Description content goes here</p>
+    </div>
+
+    <!-- Right-side icons -->
+    <div class="right-icons">
+      <i class="fas fa-heart icon-btn" id="like-btn" title="Like"></i>
+      <i class="fas fa-share icon-btn" id="share-btn" title="Share"></i>
+      <i class="fas fa-play icon-btn" id="play-pause-icon" title="Play/Pause"></i>
+    </div>
+
+    <!-- Bottom bar: date on left, swipe hint on right -->
+    <div class="bottom-bar">
+      <div class="date-text" id="news-date">Thu, 26 Dec 2024 13:01:43 -0500</div>
+    </div>
+
+      <!-- Swipe-up instructions -->
+      <div class="swipe-up">
+        <i class="fas fa-chevron-up"></i>
+        Swipe/Scroll up for more
       </div>
-      <div id="text-content">
-        <div id="news-title" style="font-size: 20px; font-weight: bold;"></div>
-        <div id="news-description" style="font-size: 16px; margin-top: 5px;"></div>
-      </div>
-    </div>
-    <div class="icons-section">
-      <div class="icon-btn"><i class="fas fa-heart"></i></div>
-      <div class="icon-btn"><i class="fas fa-comment"></i></div>
-      <div class="icon-btn"><i class="fas fa-share"></i></div>
-      <div class="icon-btn" id="play-pause-btn"><i class="fas fa-pause"></i></div>
-    </div>
-    <div class="music-bar">
-      <i class="fas fa-music"></i>
-      <div>Trending News Sound</div>
-    </div>
-    <div class="swipe-up">
-      <i class="fas fa-chevron-up"></i>
-      Swipe up for more
-    </div>
   </div>
 
   <script>
-    // Grab the news data passed from the server
-    // Assuming 'newsItems' is defined, replace with your actual data fetching
+    // --------------- SETUP & DATA ---------------
     const newsItems = JSON.parse('{{ data|tojson }}');
-
-    // Initialize Fabric.js canvas
     const canvas = new fabric.Canvas('reels-canvas', {
-      renderOnAddRemove: false
+      renderOnAddRemove: false,
     });
+    canvas.skipTargetFind = true;
 
-    let currentIndex = 0;
-    let isPaused = false;
+    // TTS
     let synth = window.speechSynthesis;
     let utterance = null;
+    let currentIndex = 0;
+    let isPaused = false;
 
-    // DOM elements
-    const playPauseBtn = document.getElementById('play-pause-btn');
+    // DOM Refs
+    const titleOverlay  = document.getElementById('title-overlay');
+    const descOverlay   = document.getElementById('desc-overlay');
+    const dateEl        = document.getElementById('news-date');
+    const playPauseIcon = document.getElementById('play-pause-icon');
+    const likeBtn       = document.getElementById('like-btn');
+    const shareBtn      = document.getElementById('share-btn');
 
-    // Helper function to speak text
+    // --------------- TTS ---------------
     function speakText(text) {
-      // Stop any ongoing speech
       if (utterance && synth.speaking) {
         synth.cancel();
       }
-
       utterance = new SpeechSynthesisUtterance(text);
-      isPaused = false;
-      playPauseBtn.textContent = 'Pause';
+      // Hardcode TTS
+      utterance.volume = 1.0;
+      utterance.rate   = 1.0;
+      utterance.pitch  = 1.0;
 
-      // Event listeners for speech synthesis
+      // Try "Microsoft David" or fallback
+      const voices = synth.getVoices();
+      const davidVoice = voices.find(v =>
+        v.name.includes("Microsoft David") &&
+        v.lang.toLowerCase().startsWith("en")
+      );
+      if (davidVoice) {
+        utterance.voice = davidVoice;
+        utterance.lang = davidVoice.lang;
+      } else {
+        utterance.lang = "en-US";
+      }
+
+      isPaused = false;
+      playPauseIcon.classList.remove('fa-play', 'fa-pause');
+      playPauseIcon.classList.add('fa-pause');
+
       utterance.onend = () => {
         isPaused = false;
-        playPauseBtn.textContent = 'Play';
-        // Stop animations when speech ends
-        stopTextAnimations();
+        playPauseIcon.classList.remove('fa-pause');
+        playPauseIcon.classList.add('fa-play');
       };
-
       utterance.onpause = () => {
         isPaused = true;
-        playPauseBtn.textContent = 'Play';
+        playPauseIcon.classList.remove('fa-pause');
+        playPauseIcon.classList.add('fa-play');
       };
-
       utterance.onresume = () => {
         isPaused = false;
-        playPauseBtn.textContent = 'Pause';
+        playPauseIcon.classList.remove('fa-play');
+        playPauseIcon.classList.add('fa-pause');
       };
 
       synth.speak(utterance);
-
-      // Start text animations
-      startTextAnimations();
     }
 
-    // Load and render a single news item on the Fabric.js canvas
+    // --------------- Show One Item ---------------
     async function showNewsItem(index) {
-      // Bounds check
-      if (index < 0 || index >= newsItems.length) {
-        return;
-      }
+      if (index < 0 || index >= newsItems.length) return;
       currentIndex = index;
-
-      // Clear the canvas
       canvas.clear();
 
+      // Reset text animations
+      titleOverlay.style.animation = 'none';
+      descOverlay.style.animation  = 'none';
+      void titleOverlay.offsetWidth; // reflow hack
+      void descOverlay.offsetWidth;
+      titleOverlay.style.animation = 'fadeFromLeft 1s forwards';
+      descOverlay.style.animation  = 'fadeFromRight 1s forwards';
+
       const item = newsItems[index];
-      const imageUrl = item.image_url;
+      const { title, text, date, image_url, tts_text } = item;
 
-      // Set the background image
-      setBackground(imageUrl).then(() => {
-        // Add title and description after background is set
-        addTextObjects(item);
-        canvas.renderAll();
-        // Read the news text out loud
-        speakText(item.text || '');
-      });
+      titleOverlay.textContent = title || "No Title";
+      descOverlay.textContent  = text  || "No Description";
+      dateEl.textContent       = date  || "";
+
+      speakText(tts_text || "");
+
+      await setBackgroundCover(image_url);
     }
 
-    // Set background image function
-    function setBackground(imageUrl) {
-      return new Promise((resolve, reject) => {
-        fabric.Image.fromURL(imageUrl, function(img) {
-          if (!img) {
-            // Fallback image
-            fabric.Image.fromURL('https://via.placeholder.com/360x600.png?text=No+Image', function(placeholder) {
-              canvas.setBackgroundImage(placeholder, canvas.renderAll.bind(canvas), {
-                scaleX: canvas.width / placeholder.width,
-                scaleY: canvas.height / placeholder.height
-              });
-              resolve();
-            });
-          } else {
-            canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), {
-              scaleX: canvas.width / img.width,
-              scaleY: canvas.height / img.height
-            });
-            resolve();
-          }
-        }, { crossOrigin: 'anonymous' });
-      });
-    }
-
-    // Add title and description text objects with animations
-function addTextObjects(item) {
-  // Title Text
-  const titleObj = new fabric.Textbox(item.title || 'No Title', {
-    left: 20,
-    top: 50,
-    width: canvas.width - 40,
-    fontSize: 20,
-    fontWeight: 'bold',
-    fill: '#ffffff',
-    shadow: 'rgba(0,0,0,0.3) 2px 2px 5px',
-    opacity: 0, // Start fully transparent
-  });
-  canvas.add(titleObj);
-
-  // Description Text
-  const textObj = new fabric.Textbox(item.text || 'No Description', {
-    left: 20,
-    top: 150,
-    width: canvas.width - 40,
-    fontSize: 18,
-    fill: '#ffffff',
-    shadow: 'rgba(0,0,0,0.3) 2px 2px 5px',
-    opacity: 0, // Start fully transparent
-  });
-  canvas.add(textObj);
-
-  // Animate the title text fade-in
-  titleObj.animate('opacity', 1, {
-    onChange: canvas.renderAll.bind(canvas),
-    duration: 1000,
-    easing: fabric.util.ease.easeInOutQuad,
-  });
-
-  // Animate the description text fade-in with a slight delay
-  textObj.animate('opacity', 1, {
-    onChange: canvas.renderAll.bind(canvas),
-    duration: 1000,
-    delay: 500,
-    easing: fabric.util.ease.easeInOutQuad,
-  });
-
-  // Store references for animations
-  canvas.titleObj = titleObj;
-  canvas.textObj = textObj;
-}
-
-// Function to start text animations while speech is playing
-function startTextAnimations() {
-  // Apply fade left/right animation to text objects
-  if (canvas.titleObj && canvas.textObj) {
-    animateFadeLeftRight(canvas.titleObj);
-    animateFadeLeftRight(canvas.textObj);
-  }
-}
-
-// Recursive function to animate fade left/right
-function animateFadeLeftRight(obj) {
-  const originalLeft = obj.left;
-  const shift = 10; // Amount to move left and right
-  const originalOpacity = obj.opacity || 1;
-  const fadeToOpacity = 0.7; // Opacity to fade to
-
-  // Animate to the left and fade out slightly
-  obj.animate(
-    { left: originalLeft - shift, opacity: fadeToOpacity },
-    {
-      duration: 1000,
-      onChange: canvas.renderAll.bind(canvas),
-      easing: fabric.util.ease.easeInOutQuad,
-      onComplete: () => {
-        // Animate to the right and fade back in
-        obj.animate(
-          { left: originalLeft + shift, opacity: originalOpacity },
-          {
-            duration: 1000,
-            onChange: canvas.renderAll.bind(canvas),
-            easing: fabric.util.ease.easeInOutQuad,
-            onComplete: () => {
-              // Animate back to original position and opacity
-              obj.animate(
-                { left: originalLeft, opacity: originalOpacity },
-                {
-                  duration: 1000,
-                  onChange: canvas.renderAll.bind(canvas),
-                  easing: fabric.util.ease.easeInOutQuad,
-                  onComplete: () => {
-                    if (!isPaused && synth.speaking) {
-                      // Continue the animation recursively
-                      animateFadeLeftRight(obj);
-                    } else {
-                      // Reset object to original state if animation stops
-                      obj.set({ left: originalLeft, opacity: originalOpacity });
-                      canvas.renderAll();
-                    }
-                  },
-                }
+    // --------------- BG COVER ---------------
+    function setBackgroundCover(imageUrl) {
+      return new Promise((resolve) => {
+        fabric.Image.fromURL(
+          imageUrl,
+          (img) => {
+            if (!img) {
+              fabric.Image.fromURL(
+                'https://via.placeholder.com/360x640.png?text=No+Image',
+                (placeholder) => {
+                  coverImage(placeholder);
+                  resolve();
+                },
+                { crossOrigin: 'anonymous' }
               );
-            },
-          }
+            } else {
+              coverImage(img);
+              resolve();
+            }
+          },
+          { crossOrigin: 'anonymous' }
         );
-      },
-    }
-  );
-}
-    // Function to stop text animations
-    function stopTextAnimations() {
-      // Stop animations by setting 'isPaused' to true
-      isPaused = true;
+      });
     }
 
-    // Initial load
-    showNewsItem(currentIndex);
+    function coverImage(imgObj) {
+      const scaleRatio = Math.max(
+        canvas.width / imgObj.width,
+        canvas.height / imgObj.height
+      );
+      imgObj.scaleX = scaleRatio;
+      imgObj.scaleY = scaleRatio;
+      imgObj.set({
+        originX: 'center',
+        originY: 'center',
+        left: canvas.width / 2,
+        top:  canvas.height / 2
+      });
+      canvas.setBackgroundImage(
+        imgObj,
+        canvas.renderAll.bind(canvas)
+      );
+    }
 
-  
+    // --------------- NAVIGATION ---------------
+    function nextItem() {
+      synth.cancel();
+      currentIndex = (currentIndex + 1) % newsItems.length;
+      showNewsItem(currentIndex);
+    }
+    function prevItem() {
+      synth.cancel();
+      currentIndex = (currentIndex - 1 + newsItems.length) % newsItems.length;
+      showNewsItem(currentIndex);
+    }
 
-    playPauseBtn.addEventListener('click', () => {
+    // --------------- PLAY / PAUSE ---------------
+    function togglePlayPause() {
       if (synth.speaking) {
         if (isPaused) {
-          // Resume the speech
           synth.resume();
           isPaused = false;
-          playPauseBtn.textContent = 'Pause';
-          // Resume animations
-          startTextAnimations();
+          playPauseIcon.classList.remove('fa-play');
+          playPauseIcon.classList.add('fa-pause');
         } else {
-          // Pause the speech
           synth.pause();
           isPaused = true;
-          playPauseBtn.textContent = 'Play';
-          // Stop animations
-          stopTextAnimations();
+          playPauseIcon.classList.remove('fa-pause');
+          playPauseIcon.classList.add('fa-play');
         }
       } else {
-        // If not speaking, start the speech
         const item = newsItems[currentIndex];
-        speakText(item.text || '');
+        speakText(item.tts_text || '');
       }
+    }
+
+    // --------------- LIKE ANIMATION ---------------
+    function showFloatingHeart(iconElem) {
+      // Create a span for the +1 heart
+      const span = document.createElement('span');
+      span.classList.add('floating-heart');
+      span.textContent = '+1 ❤️';
+      // Position near the icon
+      const rect = iconElem.getBoundingClientRect();
+      span.style.left = (rect.x + rect.width / 2) + 'px';
+      span.style.top  = (rect.y + rect.height / 2) + 'px';
+      document.body.appendChild(span);
+
+      // After animation ends, remove from DOM
+      span.addEventListener('animationend', () => {
+        document.body.removeChild(span);
+      });
+    }
+
+    // --------------- EVENT LISTENERS ---------------
+    // Init
+    showNewsItem(currentIndex);
+
+    playPauseIcon.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePlayPause();
     });
 
-    
-    // Swipe interactions
+    // Clicking outside the icons toggles TTS
+    document.getElementById('reels-container').addEventListener('click', (e) => {
+      if (e.target.classList.contains('icon-btn')) return;
+      togglePlayPause();
+    });
+
+    // Like button => show the +1 heart
+    likeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showFloatingHeart(likeBtn);
+      console.log("Liked item:", currentIndex);
+    });
+
+    // Share (dummy logic)
+    shareBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      console.log("Share clicked for item:", currentIndex);
+    });
+
+    // Swipe up/down
     let startY = null;
-    window.addEventListener('touchstart', function(e) {
+    window.addEventListener('touchstart', e => {
       startY = e.touches[0].clientY;
     });
-    window.addEventListener('touchmove', function(e) {
+    window.addEventListener('touchmove', e => {
       if (!startY) return;
       let deltaY = startY - e.touches[0].clientY;
       if (deltaY > 50) {
-        // Swiped up
         nextItem();
         startY = null;
       } else if (deltaY < -50) {
-        // Swiped down
         prevItem();
         startY = null;
       }
     });
 
-    // Keyboard interactions for desktop testing
-    window.addEventListener('keydown', function(e) {
+    // Keyboard up/down
+    window.addEventListener('keydown', e => {
       if (e.key === 'ArrowUp') {
         nextItem();
       } else if (e.key === 'ArrowDown') {
@@ -420,17 +457,20 @@ function animateFadeLeftRight(obj) {
       }
     });
 
-    function nextItem() {
-      synth.cancel(); // Stop current speech
-      currentIndex = (currentIndex + 1) % newsItems.length;
-      showNewsItem(currentIndex);
-    }
+    // Scroll wheel
+    let scrollTimeout = null;
+    window.addEventListener('wheel', (e) => {
+      if (scrollTimeout) return;
+      scrollTimeout = setTimeout(() => {
+        scrollTimeout = null;
+      }, 300);
 
-    function prevItem() {
-      synth.cancel(); // Stop current speech
-      currentIndex = (currentIndex - 1 + newsItems.length) % newsItems.length;
-      showNewsItem(currentIndex);
-    }
+      if (e.deltaY > 0) {
+        nextItem();
+      } else {
+        prevItem();
+      }
+    });
   </script>
 </body>
 </html>
