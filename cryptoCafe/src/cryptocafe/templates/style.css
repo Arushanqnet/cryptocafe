@@ -1,0 +1,182 @@
+/* ----------------------------
+   External CSS: style.css
+   ---------------------------- */
+
+/* Use a sleek, professional font and a light background */
+body {
+    background-color: #FAFBFD;
+    color: #333;
+    font-family: 'Poppins', sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Navbar */
+  .navbar {
+    background: linear-gradient(90deg, #4FACFE 0%, #00F2FE 100%);
+    color: #FFF;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+  }
+  
+  .navbar-brand {
+    color: #fff !important;
+    font-size: 1.5rem;
+    font-weight: 600;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+  }
+  
+  .nav-link {
+    color: #fff !important;
+    margin-right: 1rem;
+    font-weight: 400;
+  }
+  
+  .nav-link:hover {
+    color: #fff !important;
+    opacity: 0.8;
+  }
+  
+  /* Main container to hold content */
+  .container {
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    padding: 2rem;
+  }
+  
+  /* Headings inside container */
+  h1, h2 {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 1rem;
+  }
+  
+  /* Hero section for non-logged-in users */
+  .hero-text {
+    text-align: center;
+    margin-bottom: 2rem;
+    color: #333;
+  }
+  
+  .hero-text h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+  
+  .hero-text p {
+    font-size: 1.15rem;
+    color: #555;
+  }
+  
+  /* Buttons */
+  .btn-primary {
+    background: linear-gradient(90deg, #4FACFE 0%, #00F2FE 100%);
+    border: none;
+    color: #fff;
+    transition: background 0.3s ease;
+  }
+  
+  .btn-primary:hover {
+    opacity: 0.9;
+  }
+  
+  /* Search form inputs */
+  .form-control,
+  .form-select {
+    background-color: #F9F9F9;
+    color: #333;
+    border: 1px solid #DDD;
+  }
+  
+  .form-control:focus,
+  .form-select:focus {
+    border-color: #4FACFE;
+    outline: none;
+    box-shadow: 0 0 4px rgba(79, 172, 254, 0.4);
+  }
+  
+  /* Card styling */
+  .card {
+    background-color: #fff;
+    color: #333;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+  }
+  
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .card-img-top {
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+  }
+  
+  .card-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .card-text {
+    font-size: 1rem;
+    color: #555;
+  }
+  
+  .card-footer {
+    background-color: #fff;
+    border-top: 1px solid #EEE;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+  }
+  
+  .text-muted {
+    color: #999 !important;
+  }
+  
+  /* Full-screen loading overlay */
+  #loadingOverlay {
+    position: fixed;
+    top: 0; 
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  }
+  
+  .overlay-content {
+    text-align: center;
+    color: #fff;
+  }
+  
+  /* Logo in the loading overlay */
+  .overlay-logo {
+    width: 100px;
+    height: 100px;
+    margin-bottom: 2rem;
+  }
+  
+  /* Progress bar styling in the overlay */
+  .overlay-progress {
+    width: 300px;
+    margin: 0 auto;
+  }
+  
+  .overlay-progress .progress-bar {
+    transition: width 0.3s ease;
+  }
+  

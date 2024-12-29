@@ -4,6 +4,7 @@ import os
 import json
 import re
 import requests
+import time
 
 from quart import (
     Quart, request, session, redirect, url_for, render_template, send_from_directory
@@ -22,10 +23,6 @@ load_dotenv()
 # Initialize OpenAI
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-# ---------------------------------------------------------------------
-# CONFIG
-# ---------------------------------------------------------------------
-
 
 # ---------------------------------------------------------------------
 # CONFIG
@@ -44,7 +41,7 @@ os.makedirs('static/images', exist_ok=True)
 GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
 GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
 
-# Database
+# Database for user accounts + their personalized articles
 Base = declarative_base()
 
 class User(Base):
@@ -70,9 +67,43 @@ class User(Base):
 
 class Article(Base):
     """
-    Example DB model for news articles.
+    Personalized DB model for user-specific news articles.
+    Notice we added 'user_email' so we can filter articles
+    by each specific user.
     """
     __tablename__ = "articles"
+
+    id          = Column(Integer, primary_key=True)
+    user_email  = Column(String, nullable=True)  # <--- used to link articles to a user
+    news_url    = Column(String, nullable=False)
+    image_path  = Column(String, nullable=True)
+    title       = Column(String, nullable=True)
+    text        = Column(Text, nullable=True)
+    source_name = Column(String, nullable=True)
+    date        = Column(String, nullable=True)
+    topics      = Column(String, nullable=True)
+    sentiment   = Column(String, nullable=True)
+    tickers     = Column(String, nullable=True)
+    tts_text    = Column(Text, nullable=True)
+    tts_type    = Column(String, nullable=True)
+
+# Connect articles.db
+db_file = "sqlite:///articles.db"
+engine = create_engine(db_file, echo=False)
+SessionLocal = sessionmaker(bind=engine)
+Base.metadata.create_all(engine)
+
+# ---------------------------------------------------------------------
+# New DB: journals.db
+# ---------------------------------------------------------------------
+JournalsBase = declarative_base()
+
+class JournalArticle(JournalsBase):
+    """
+    Stores trending news fetched every 5 minutes.
+    (Used as the 'master' list of news.)
+    """
+    __tablename__ = "journal_articles"
 
     id          = Column(Integer, primary_key=True)
     news_url    = Column(String, unique=True, nullable=False)
@@ -81,16 +112,28 @@ class Article(Base):
     text        = Column(Text, nullable=True)
     source_name = Column(String, nullable=True)
     date        = Column(String, nullable=True)
-    topics      = Column(String, nullable=True)   # e.g. "BTC,ETH"
+    topics      = Column(String, nullable=True)
     sentiment   = Column(String, nullable=True)
     tickers     = Column(String, nullable=True)
     tts_text    = Column(Text, nullable=True)
     tts_type    = Column(String, nullable=True)
+    created_at  = Column(Integer, default=lambda: int(time.time()))
 
-db_file = "sqlite:///articles.db"
-engine = create_engine(db_file, echo=False)
-SessionLocal = sessionmaker(bind=engine)
-Base.metadata.create_all(engine)
+db_journals_file = "sqlite:///journals.db"
+journals_engine = create_engine(db_journals_file, echo=False)
+SessionLocalJournals = sessionmaker(bind=journals_engine)
+JournalsBase.metadata.create_all(journals_engine)
+
+
+# Predefined trending headings
+TRENDING_TOPICS = [
+    "Bitcoin (BTC)",         # The original cryptocurrency
+    "Ethereum (ETH)",        # Smart contracts & DeFi hub
+    "DeFi",                  # Decentralized finance solutions
+    "NFTs",                  # Digital collectibles & art
+    "Trading",               # Short/long-term strategies
+    "Market Insights"        # Daily news & analysis
+]
 
 # Google OAuth Endpoints
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -99,6 +142,38 @@ GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
 GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+# ---------------------------------------------------------------------
+# BACKGROUND TASK
+# ---------------------------------------------------------------------
+background_task_running = False
+
+async def fetch_trending_news_loop():
+    """
+    Infinite loop that runs every 5 minutes (300s).
+    Fetches trending news for each topic in TRENDING_TOPICS,
+    upserts them into journals.db, and sleeps 5 mins.
+    """
+    while True:
+        try:
+            await fetch_and_update_journals_db()
+        except Exception as e:
+            print("ERROR in fetch_trending_news_loop:", e)
+        await asyncio.sleep(300)  # 5 minutes
+
+async def fetch_and_update_journals_db():
+    """
+    For each topic in TRENDING_TOPICS, run google search and upsert into JournalArticle.
+    """
+    j_sess = SessionLocalJournals()
+    for topic in TRENDING_TOPICS:
+        results = google_cse_search(topic, limit=3)
+        for r in results:
+            # upsert
+            upsert_journal_article(j_sess, r, topics=topic, tts_type="Plain text")
+    j_sess.commit()
+    j_sess.close()
+
 
 # ---------------------------------------------------------------------
 # OAUTH 2.0 (Manual)
@@ -128,7 +203,10 @@ async def auth_callback():
     """
     Google calls this with ?code=.
     Exchange code for tokens, get user info, store in DB if new.
+    Then start the background fetch if not started already.
     """
+    global background_task_running
+
     code = request.args.get("code")
     if not code:
         return "No code provided in callback.", 400
@@ -177,9 +255,17 @@ async def auth_callback():
             # if user has no topics or style => onboarding
             if not existing_user.topics or not existing_user.style:
                 db_sess.close()
+                # Start background task if not started
+                if not background_task_running:
+                    background_task_running = True
+                    asyncio.create_task(fetch_trending_news_loop())
                 return redirect(url_for("onboarding"))
             else:
                 db_sess.close()
+                # Start background task if not started
+                if not background_task_running:
+                    background_task_running = True
+                    asyncio.create_task(fetch_trending_news_loop())
                 return redirect(url_for("index"))
         else:
             # create new user => need onboarding
@@ -195,6 +281,11 @@ async def auth_callback():
             db_sess.commit()
             session["user_id"] = new_user.id
             db_sess.close()
+
+            # Start background task if not started
+            if not background_task_running:
+                background_task_running = True
+                asyncio.create_task(fetch_trending_news_loop())
             return redirect(url_for("onboarding"))
 
     except Exception as e:
@@ -204,6 +295,7 @@ async def auth_callback():
 @app.route("/logout")
 async def logout():
     session.pop("user_id", None)
+    session.pop("search_results", None)
     return redirect(url_for("index"))
 
 
@@ -226,9 +318,11 @@ async def onboarding():
 async def save_onboarding():
     """
     1) Save the user's chosen topics + style.
-    2) For each chosen topic, fetch articles via Google CSE.
-    3) Upsert them into DB with TTS text.
-    4) Redirect to the homepage.
+    2) We'll no longer fetch articles from Google here for each topic.
+       Instead, we rely on journals.db for trending. 
+       We'll do an immediate check for new articles in journals.db 
+       and copy relevant ones to articles.db in user’s style.
+    3) Redirect to the homepage.
     """
     user_id = session.get("user_id")
     if not user_id:
@@ -250,21 +344,10 @@ async def save_onboarding():
         user.style  = style
         db_sess.commit()
 
-        # 2) For each topic, fetch articles from Google CSE
-        #    You can decide how many articles per topic you want to fetch:
-        for topic in topics_list:
-            # skip empty
-            if not topic.strip():
-                continue
-            
-            # fetch e.g. 3-5 articles for each topic
-            results = google_cse_search(topic.strip(), limit=3)
-            # upsert them
-            for r in results:
-                upsert_article(db_sess, r, topics=user.topics, tts_type=user.style)
+        # Pull from journals.db => copy relevant into articles.db
+        copy_journals_to_user_articles(user)
 
-        db_sess.commit()
-    db_sess.close()
+        db_sess.close()
 
     return redirect(url_for("index"))
 
@@ -291,7 +374,7 @@ async def settings():
 async def save_settings():
     """
     Similar to save_onboarding, but for the settings page.
-    (Optionally, you could also fetch new articles here if topics change.)
+    We'll also do a fresh copy from journals.db => user's articles.
     """
     user_id = session.get("user_id")
     if not user_id:
@@ -311,10 +394,10 @@ async def save_settings():
         user.style  = style
         db_sess.commit()
 
-        # If desired, refetch or update articles on settings change as well.
-        # (Omitted by default.)
-    db_sess.close()
+        # Also copy new items from journals.db => user
+        copy_journals_to_user_articles(user)
 
+    db_sess.close()
     return redirect(url_for("index"))
 
 
@@ -324,8 +407,12 @@ async def save_settings():
 def google_cse_search(query: str, limit=10):
     """
     Calls Google Custom Search JSON API for up to 'limit' results.
-    Returns a list of dicts in a format that can be inserted as "Article".
+    Returns a list of dicts in a format that can be inserted as an Article-like record.
     """
+    if not GOOGLE_CSE_API_KEY or not GOOGLE_CSE_CX:
+        print("Warning: GOOGLE_CSE_API_KEY or GOOGLE_CSE_CX not set.")
+        return []
+
     params = {
         "key": GOOGLE_CSE_API_KEY,
         "cx":  GOOGLE_CSE_CX,
@@ -353,9 +440,9 @@ def google_cse_search(query: str, limit=10):
                 image_url = cse_image[0].get("src", "")
 
             results.append({
-                "news_url": link,
-                "title":    title,
-                "text":     snippet,
+                "news_url": link.strip(),
+                "title":    title.strip(),
+                "text":     snippet.strip(),
                 "source_name": "Google Search",
                 "date": "",
                 "image_url": image_url,
@@ -386,23 +473,24 @@ def download_image(image_url: str, filename: str) -> str:
     return local_path
 
 
-def upsert_article(session, data: dict, topics: str, tts_type: str = "default"):
+def upsert_journal_article(session, data: dict, topics: str, tts_type: str = "Plain text"):
     """
-    Insert or update an Article record.
-    Download its image (if needed) and generate TTS text.
+    Insert or update a JournalArticle record in DB (journals.db).
+    Also downloads image. We store text as is (plain text).
+    We won't generate TTS here, to keep it simpler.
     """
     news_url = data.get("news_url", "").strip()
     if not news_url:
         return None
 
     existing = session.execute(
-        select(Article).where(Article.news_url == news_url)
+        select(JournalArticle).where(JournalArticle.news_url == news_url)
     ).scalar_one_or_none()
 
     if existing:
         article = existing
     else:
-        article = Article(news_url=news_url)
+        article = JournalArticle(news_url=news_url)
         session.add(article)
 
     article.title       = data.get("title", "")
@@ -422,69 +510,72 @@ def upsert_article(session, data: dict, topics: str, tts_type: str = "default"):
     else:
         article.image_path = "/static/images/default.jpg"
 
-    generate_tts(article)
     return article
 
 
-def article_to_dict(article: Article):
+def copy_journals_to_user_articles(user_obj):
     """
-    Convert an Article object to a dict,
-    splitting topics/tickers into lists for convenience.
+    Fetch all JournalArticle from journals.db.
+    Compare topics with user_obj.topics.
+    For new matches, convert them to user’s style, store in articles.db with user_email.
     """
-    return {
-        "news_url":    article.news_url,
-        "image_url":   article.image_path,
-        "title":       article.title,
-        "text":        article.text,
-        "source_name": article.source_name,
-        "date":        article.date,
-        "topics":      (article.topics or "").split(","),
-        "sentiment":   article.sentiment,
-        "tickers":     (article.tickers or "").split(","),
-        "tts_text":    article.tts_text,
-        "tts_type":    article.tts_type,
-    }
+    j_sess = SessionLocalJournals()
+    db_sess = SessionLocal()
+
+    # Get all from journals.db
+    all_journals = j_sess.execute(select(JournalArticle)).scalars().all()
+    user_topics = set((user_obj.topics or "").split(","))
+
+    for jart in all_journals:
+        # If any overlap in topics => we convert + store
+        journal_topics_set = set((jart.topics or "").split(","))
+        if user_topics & journal_topics_set:  # intersection
+            # Check if already in articles.db for this user
+            existing = db_sess.execute(
+                select(Article).where(
+                    Article.user_email == user_obj.email,
+                    Article.news_url == jart.news_url
+                )
+            ).scalar_one_or_none()
+            if not existing:
+                # Create new article from jart
+                a = Article(
+                    user_email  = user_obj.email,
+                    news_url    = jart.news_url,
+                    image_path  = jart.image_path,
+                    title       = jart.title,
+                    text        = jart.text,
+                    source_name = jart.source_name,
+                    date        = jart.date,
+                    topics      = jart.topics,
+                    sentiment   = jart.sentiment,
+                    tickers     = jart.tickers,
+                    tts_type    = user_obj.style
+                )
+                # Generate TTS in user style
+                generate_tts_for_db_article(a)
+                db_sess.add(a)
+
+    db_sess.commit()
+    db_sess.close()
+    j_sess.close()
 
 
-def filter_articles_by_topics(articles, user_topics):
-    """
-    If user has some comma-separated topics, let's only show articles
-    that match at least one of those topics.
-    This is naive; refine if needed.
-    """
-    if not user_topics.strip():
-        return articles  # no filtering
-
-    topic_list = [t.strip().lower() for t in user_topics.split(",") if t.strip()]
-    if not topic_list:
-        return articles
-
-    filtered = []
-    for a in articles:
-        article_topic_list = [t.strip().lower() for t in (a.topics or "").split(",") if t.strip()]
-        # if there's any overlap
-        if set(topic_list).intersection(set(article_topic_list)):
-            filtered.append(a)
-    return filtered
-
-
-def sanitize(entry):       
+def sanitize(entry: str) -> str:
     sanitized_text = html.escape(entry)
-
-    # Escape backslashes and double quotes for JSON safety
+    # Escape backslashes and double quotes
     sanitized_text = sanitized_text.replace('\\', '\\\\').replace('"', '\\"')
 
-    # Remove unnecessary quotes at the start and end
+    # Remove quotes at the start/end if they exist
     if sanitized_text.startswith('"') and sanitized_text.endswith('"'):
         sanitized_text = sanitized_text[1:-1]
-    
+
     return sanitized_text
 
-def generate_tts(article_obj: Article):
+
+def generate_tts_for_db_article(article_obj: Article):
     """
-    Generates a TTS script by calling OpenAI with the user-defined style.
-    If 'tts_text' is already set, returns it.
-    Otherwise, uses the article text to produce a short TTS summary.
+    Generates TTS text for a user-specific Article object, storing in article_obj.tts_text.
     """
     if article_obj.tts_text:
         return article_obj.tts_text
@@ -494,33 +585,27 @@ def generate_tts(article_obj: Article):
         article_obj.tts_text = "No content to speak."
         return article_obj.tts_text
 
-    style = article_obj.tts_type or "How it influences current market rates"
+    style = article_obj.tts_type or "default style"
     prompt = f"""
-            Please create a youtube short reels script (~30-45 seconds) voiceover summarizing the following article in a {style}.
-            Keep it concise but natural. Include ONLY the voiceover script in your response.
+    Please create a YouTube short reels script (~30-45 seconds) voiceover summarizing
+    the following article in a {style}.
+    Keep it concise but natural. Include ONLY the voiceover script in your response.
 
-            Article text:
-            \"\"\"
-            {raw_text}
-            \"\"\"
-                """
+    Article text:
+    \"\"\"
+    {raw_text}
+    \"\"\"
+    """
     try:
-        response =  client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": "You are a News narrator outputing news voiceover scripts as plain text"},
-            {"role": "user", "content": prompt}
-        ],
-    )
-        # FIX: Extract content string and strip it
-        ssml_output = response.choices[0].message.content.strip()
-        # e.g. if you had GPT:
-        # prompt = f"Please create a {style} TTS script for the following article: {raw_text}"
-        # response = ...
-        article_obj.tts_text = sanitize(ssml_output)
-
-        # For demonstration:
-
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a News narrator outputting news voiceover scripts as plain text"},
+                {"role": "user", "content": prompt}
+            ],
+        )
+        script_output = response.choices[0].message.content.strip()
+        article_obj.tts_text = sanitize(script_output)
         return article_obj.tts_text
     except Exception as e:
         print("OpenAI TTS error:", e)
@@ -530,19 +615,64 @@ def generate_tts(article_obj: Article):
 
 
 # ---------------------------------------------------------------------
+# EPHEMERAL (NON-DB) SEARCH UTILS
+# ---------------------------------------------------------------------
+def generate_tts_for_ephemeral(article_dict: dict):
+    """
+    Generates TTS text for a single ephemeral search result (a dict).
+    We'll store the result in article_dict["tts_text"].
+    """
+    if "tts_text" in article_dict and article_dict["tts_text"]:
+        return article_dict["tts_text"]
+
+    raw_text = (article_dict.get("text") or "").strip()
+    if not raw_text:
+        article_dict["tts_text"] = "No content to speak."
+        return article_dict["tts_text"]
+
+    style = article_dict.get("tts_type") or "default style"
+    prompt = f"""
+    Please create a YouTube short reels script (~30-45 seconds) voiceover summarizing
+    the following article in a {style}.
+    Keep it concise but natural. Include ONLY the voiceover script in your response.
+
+    Article text:
+    \"\"\"
+    {raw_text}
+    \"\"\"
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a News narrator outputting news voiceover scripts as plain text"},
+                {"role": "user", "content": prompt}
+            ],
+        )
+        script_output = response.choices[0].message.content.strip()
+        article_dict["tts_text"] = sanitize(script_output)
+        return article_dict["tts_text"]
+    except Exception as e:
+        print("OpenAI TTS error:", e)
+        article_dict["tts_text"] = "Error generating TTS."
+        return article_dict["tts_text"]
+
+
+# ---------------------------------------------------------------------
 # ROUTES
 # ---------------------------------------------------------------------
 @app.route("/")
 async def index():
     """
-    If user not logged in => show sign in button
-    If user logged in => 
-       - if user missing topics/style => redirect to /onboarding
-       - else => show articles & search
+    - If user not logged in => show sign in button (empty article lists).
+    - If logged in and missing topics/style => onboard.
+    - Otherwise => show custom search results + user-personalized DB articles from articles.db.
+      NOTE: We replaced the old "DB fetch by topic" with fetch of user_email-based articles,
+            sorted newest-first (id desc or any time-based approach).
     """
     user_id = session.get("user_id")
     if not user_id:
-        return await render_template("index.html", user=None, data=[])
+        return await render_template("index.html", user=None, ephemeral_data=[], db_data=[])
 
     db_sess = SessionLocal()
     db_user = db_sess.execute(
@@ -550,50 +680,108 @@ async def index():
     ).scalar_one_or_none()
 
     if not db_user:
-        # no user found => log them out
         db_sess.close()
         session.pop("user_id", None)
-        return await render_template("index.html", user=None, data=[])
+        return await render_template("index.html", user=None, ephemeral_data=[], db_data=[])
 
-    # if user has no topics or style => onboard them
+    # If user missing topics or style => force onboarding
     if not db_user.topics or not db_user.style:
         db_sess.close()
         return redirect(url_for("onboarding"))
 
-    # If they do have topics/style, fetch articles
-    user_topics = set(db_user.topics.split(","))
-    all_articles = db_sess.execute(select(Article)).scalars().all()
+    # If user is returning, check for new journalse again
+    copy_journals_to_user_articles(db_user)
+
+    # 1) Pull ephemeral search results from session
+    ephemeral_data = session.get("search_results", [])
+
+    # 2) Fetch user's personalized articles from articles.db
+    user_articles = db_sess.execute(
+        select(Article)
+        .where(Article.user_email == db_user.email)
+        .order_by(Article.id.desc())  # new news first
+    ).scalars().all()
     db_sess.close()
 
-    # filter articles that match at least one of the user topics
-    filtered = []
-    for a in all_articles:
-        art_topics = set((a.topics or "").split(","))
-        if user_topics & art_topics:
-            filtered.append(a)
+    # 3) Convert to dict
+    db_data = []
+    for a in user_articles:
+        db_data.append({
+            "news_url":    a.news_url,
+            "image_url":   a.image_path,
+            "title":       a.title,
+            "text":        a.text,
+            "source_name": a.source_name,
+            "date":        a.date,
+            "topics":      (a.topics or "").split(","),
+            "sentiment":   a.sentiment,
+            "tickers":     (a.tickers or "").split(","),
+            "tts_text":    a.tts_text,
+            "tts_type":    a.tts_type,
+        })
 
-    display_data = [article_to_dict(a) for a in filtered]
-    return await render_template("index.html", user=db_user, data=display_data)
+    return await render_template(
+        "index.html",
+        user=db_user,
+        ephemeral_data=ephemeral_data, 
+        db_data=db_data
+    )
 
 
 @app.route("/search", methods=["POST"])
 async def do_search():
     """
-    1) Check that the user is logged in
-    2) Get the query from form
-    3) Call google CSE
-    4) Upsert top results into DB
-    5) Return to home
+    - Perform Google search (CSE).
+    - Generate ephemeral TTS for each result.
+    - Store them in session["search_results"].
+    - Do NOT store in DB. Keep custom search as is.
     """
     user_id = session.get("user_id")
     if not user_id:
         return redirect(url_for("index"))
 
     form_data = await request.form
-    query    = form_data.get("query", "").strip()
-    tts_type = form_data.get("tts_type", "").strip()
+    query = form_data.get("query", "").strip()
+    tts_type = form_data.get("tts_type", "").strip() or ""
 
     if not query:
+        return redirect(url_for("index"))
+
+    # Clear old ephemeral data
+    session["search_results"] = []
+
+    results = google_cse_search(query, limit=4)
+    ephemeral_articles = []
+    for r in results:
+        r["tts_type"] = tts_type
+        # generate ephemeral TTS
+        generate_tts_for_ephemeral(r)
+
+        # download image to local
+        image_url = r.get("image_url") or ""
+        if image_url:
+            filename = f"{abs(hash(image_url))}.jpg"
+            local_path = download_image(image_url, filename)
+            r["image_url"] = "/" + local_path
+        else:
+            r["image_url"] = "/static/images/default.jpg"
+
+        ephemeral_articles.append(r)
+
+    # Save ephemeral articles in session
+    session["search_results"] = ephemeral_articles
+    return redirect(url_for("index"))
+
+
+@app.route("/reels")
+async def reels():
+    """
+    Shows a reels-style page with combined ephemeral + user-personalized DB articles
+    in the exact same order as index.html:
+      ephemeral_data first, then db_data
+    """
+    user_id = session.get("user_id")
+    if not user_id:
         return redirect(url_for("index"))
 
     db_sess = SessionLocal()
@@ -601,34 +789,46 @@ async def do_search():
         select(User).where(User.id == user_id)
     ).scalar_one_or_none()
 
-    # If user didn't pick a new TTS style, fallback to what's in DB
-    final_tts_style = tts_type or (db_user.style or "default")
+    if not db_user:
+        db_sess.close()
+        return redirect(url_for("index"))
 
-    # Google search
-    results = google_cse_search(query, limit=4)
+    # ephemeral first
+    ephemeral_data = session.get("search_results", [])
 
-    for r in results:
-        upsert_article(db_sess, r, topics=db_user.topics, tts_type=final_tts_style)
-
-    db_sess.commit()
+    # then fetch user's personalized articles
+    user_articles = db_sess.execute(
+        select(Article)
+        .where(Article.user_email == db_user.email)
+        .order_by(Article.id.desc())
+    ).scalars().all()
     db_sess.close()
 
-    return redirect(url_for("index"))
+    db_data = []
+    for a in user_articles:
+        db_data.append({
+            "news_url":    a.news_url,
+            "image_url":   a.image_path,
+            "title":       a.title,
+            "text":        a.text,
+            "source_name": a.source_name,
+            "date":        a.date,
+            "topics":      (a.topics or "").split(","),
+            "sentiment":   a.sentiment,
+            "tickers":     (a.tickers or "").split(","),
+            "tts_text":    a.tts_text,
+            "tts_type":    a.tts_type,
+        })
 
+    combined_data = ephemeral_data + db_data
 
-@app.route("/reels")
-async def reels():
-    """
-    Reels-based view: read from DB, optional ?index= param
-    Just a sample page that can show a reel-like UI
-    """
+    # get reel index
     article_index = request.args.get("index", 0, type=int)
-    db_sess = SessionLocal()
-    all_articles = db_sess.execute(select(Article)).scalars().all()
-    db_sess.close()
-
-    data = [article_to_dict(a) for a in all_articles]
-    return await render_template("reels.html", data=data, start_index=article_index)
+    return await render_template(
+        "reels.html",
+        data=combined_data,
+        start_index=article_index
+    )
 
 
 @app.route('/static/images/<path:filename>')
@@ -641,5 +841,4 @@ def run():
 
 
 if __name__ == "__main__":
-    # Using asyncio.run(...) for Quart
     asyncio.run(app.run(debug=True))
