@@ -151,7 +151,6 @@ h1, h2 {
 /* Search form inputs */
 .form-control, .form-select {
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
 }
 .form-control:focus, .form-select:focus {
   border-color: #00CBFF;
@@ -312,14 +311,29 @@ h1, h2 {
         <!-- Narration style -->
         <div class="col-12">
           <h4>How do you want CryptoCafe to narrate your reels?</h4>
-          <textarea
+          <select
             name="style"
             class="form-control"
-            rows="3"
-            placeholder="Enter narration style here"
             required
-          ></textarea>
+          >
+            <option value="">-- Select a Narration Style --</option>
+            <option value="Persuasive">Persuasive</option>
+            <option value="Academic writing">Academic writing</option>
+            <option value="Business style">Business style</option>
+            <option value="Circular narrative">Circular narrative</option>
+            <option value="Expository style">Expository style</option>
+            <option value="Creative nonfiction">Creative nonfiction</option>
+            <option value="Encouraging">Encouraging</option>
+            <option value="Epistolary novel">Epistolary novel</option>
+            <option value="Format">Format</option>
+            <option value="Journalistic style">Journalistic style</option>
+            <option value="Technical writing">Technical writing</option>
+            <option value="Descriptive style">Descriptive style</option>
+            <option value="Argumentative style">Argumentative style</option>
+            <option value="Reflective">Reflective</option>
+          </select>
         </div>
+        
 
         <!-- Submit button -->
         <div class="col-12">
