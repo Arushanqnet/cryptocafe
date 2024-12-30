@@ -153,12 +153,12 @@ JournalsBase.metadata.create_all(journals_engine)
 
 # Predefined trending headings
 TRENDING_TOPICS = [
-    "Trending news about Bitcoin (BTC)",         # The original cryptocurrency
-    "Trending news about Ethereum (ETH)",        # Smart contracts & DeFi hub
-    "Trending news about DeFi",                  # Decentralized finance solutions
-    "Trending news about NFTs",                  # Digital collectibles & art
-    "Trending news about Trading",               # Short/long-term strategies
-    "Trending news about Market Insights"        # Daily news & analysis
+    "Bitcoin (BTC)",         # The original cryptocurrency
+    "Ethereum (ETH)",        # Smart contracts & DeFi hub
+    "DeFi",                  # Decentralized finance solutions
+    "NFTs",                  # Digital collectibles & art
+    "Trading",               # Short/long-term strategies
+    "Market Insights"        # Daily news & analysis
 ]
 
 # Google OAuth Endpoints
@@ -707,32 +707,34 @@ UNWANTED_ENTITIES_REGEX = re.compile(r'&#x[0-9A-Fa-f]+;')
 
 def sanitize(entry: str) -> str:
     """
-    1. Decode HTML entities (e.g., &amp; -> &, &#x27; -> ', etc.).
-    2. Remove any leftover hex entities (e.g., &#x27;) via regex in one pass.
-    3. HTML-escape the result to prevent injection.
-    4. Escape backslashes and quotes.
-    5. Strip leading/trailing quotes if necessary.
+    1) Decode HTML entities (e.g. &amp; -> &, &#x27; -> ', etc.).
+    2) Remove leftover hex entities (e.g., &#x27;) using one regex pass.
+    3) Remove ALL non-ASCII characters (unicode) outside range 0-127.
+    4) HTML-escape the result to prevent injection.
+    5) Escape backslashes and quotes.
+    6) Strip leading/trailing quotes if needed.
     """
     # Step 1: Decode HTML entities
     decoded_text = html.unescape(entry)
 
-    # Step 2: Remove any leftover hex entities like &#x27; in one pass
+    # Step 2: Remove leftover hex entities
     cleaned_text = UNWANTED_ENTITIES_REGEX.sub('', decoded_text)
 
-    # Step 3: HTML-escape for safety
+    # Step 3: Remove all non-ASCII characters (anything outside 0x00-0x7F)
+    #         This also removes emojis and other extended Unicode.
+    cleaned_text = re.sub(r'[^\x00-\x7F]+', '', cleaned_text)
+
+    # Step 4: HTML-escape (to prevent HTML/script injection)
     escaped_text = html.escape(cleaned_text)
 
-    # Step 4: Escape backslashes and double quotes
-    #         so they won't break JSON/JS strings, etc.
+    # Step 5: Escape backslashes and double quotes for safety
     escaped_text = escaped_text.replace('\\', '\\\\').replace('"', '\\"')
 
-    # Step 5: Strip leading/trailing quotes if your use-case needs it
+    # Step 6: Strip leading/trailing quotes if your use-case requires it
     if escaped_text.startswith('"') and escaped_text.endswith('"'):
         escaped_text = escaped_text[1:-1]
 
     return escaped_text
-
-
 
 def generate_tts_for_db_article(article_obj: Article):
     """
