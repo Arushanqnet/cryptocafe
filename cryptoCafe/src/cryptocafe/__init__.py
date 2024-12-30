@@ -153,12 +153,12 @@ JournalsBase.metadata.create_all(journals_engine)
 
 # Predefined trending headings
 TRENDING_TOPICS = [
-    "Bitcoin (BTC)",         # The original cryptocurrency
-    "Ethereum (ETH)",        # Smart contracts & DeFi hub
-    "DeFi",                  # Decentralized finance solutions
-    "NFTs",                  # Digital collectibles & art
-    "Trading",               # Short/long-term strategies
-    "Market Insights"        # Daily news & analysis
+    "Trending news about Bitcoin (BTC)",         # The original cryptocurrency
+    "Trending news about Ethereum (ETH)",        # Smart contracts & DeFi hub
+    "Trending news about DeFi",                  # Decentralized finance solutions
+    "Trending news about NFTs",                  # Digital collectibles & art
+    "Trending news about Trading",               # Short/long-term strategies
+    "Trending news about Market Insights"        # Daily news & analysis
 ]
 
 # Google OAuth Endpoints
