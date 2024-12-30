@@ -494,6 +494,7 @@
     // start_index is passed from the server as "start_index"
     const START_INDEX = parseInt('{{ start_index }}');
     const newsItems = JSON.parse('{{ data|tojson }}');
+    console.log("Loaded news items:", newsItems);
     const canvas = new fabric.Canvas('reels-canvas', {
       renderOnAddRemove: false,
     });

@@ -41,8 +41,11 @@ os.makedirs('static/images', exist_ok=True)
 GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
 GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
 
-# Database for user accounts + their personalized articles
+# ---------------------------------------------------------------------
+# Database #1: articles.db (user-specific storage)
+# ---------------------------------------------------------------------
 Base = declarative_base()
+
 
 class User(Base):
     """
@@ -94,9 +97,10 @@ SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(engine)
 
 # ---------------------------------------------------------------------
-# New DB: journals.db
+# Database #2: journals.db (master trending articles) + public_news
 # ---------------------------------------------------------------------
 JournalsBase = declarative_base()
+
 
 class JournalArticle(JournalsBase):
     """
@@ -110,6 +114,28 @@ class JournalArticle(JournalsBase):
     image_path  = Column(String, nullable=True)
     title       = Column(String, nullable=True)
     text        = Column(Text, nullable=True)
+    source_name = Column(String, nullable=True)
+    date        = Column(String, nullable=True)
+    topics      = Column(String, nullable=True)
+    sentiment   = Column(String, nullable=True)
+    tickers     = Column(String, nullable=True)
+    tts_text    = Column(Text, nullable=True)
+    tts_type    = Column(String, nullable=True)
+    created_at  = Column(Integer, default=lambda: int(time.time()))
+
+
+class PublicNews(JournalsBase):
+    """
+    Stores publicly-available news in a 'Journalistic style',
+    shown to non-logged-in users.
+    """
+    __tablename__ = "public_news"
+
+    id          = Column(Integer, primary_key=True)
+    news_url    = Column(String, unique=True, nullable=False)
+    image_path  = Column(String, nullable=True)
+    title       = Column(String, nullable=True)
+    text        = Column(Text, nullable=True)  # holds text in a journalistic style
     source_name = Column(String, nullable=True)
     date        = Column(String, nullable=True)
     topics      = Column(String, nullable=True)
@@ -152,7 +178,8 @@ async def fetch_trending_news_loop():
     """
     Infinite loop that runs every 5 minutes (300s).
     Fetches trending news for each topic in TRENDING_TOPICS,
-    upserts them into journals.db, and sleeps 5 mins.
+    upserts them into journals.db, and also updates public_news.
+    Then sleeps 5 mins.
     """
     while True:
         try:
@@ -164,17 +191,134 @@ async def fetch_trending_news_loop():
 async def fetch_and_update_journals_db():
     """
     For each topic in TRENDING_TOPICS, run google search and upsert into JournalArticle.
+    Then also update the public_news table from the new/updated JournalArticle data,
+    rewriting the text in 'Journalistic style' via ChatGPT and sanitizing.
     """
     j_sess = SessionLocalJournals()
     for topic in TRENDING_TOPICS:
         results = google_cse_search(topic, limit=3)
         for r in results:
-            # upsert
+            # upsert into journal_articles
             upsert_journal_article(j_sess, r, topics=topic, tts_type="Plain text")
+
+    j_sess.commit()
+
+    # After updating journal_articles, update public_news
+    update_public_news()
+
+    j_sess.close()
+
+def update_public_news():
+    """
+    Pull all journal_articles, upsert them into public_news
+    in a 'Journalistic style' and generate TTS for it.
+    """
+    j_sess = SessionLocalJournals()
+    all_jarts = j_sess.execute(select(JournalArticle)).scalars().all()
+
+    for jart in all_jarts:
+        # Check if already exists in public_news
+        existing_public = j_sess.execute(
+            select(PublicNews).where(PublicNews.news_url == jart.news_url)
+        ).scalar_one_or_none()
+
+        text_styled_sanitized = sanitize(jart.text)
+
+        if existing_public is None:
+            # Create new PublicNews
+            pnews = PublicNews(
+                news_url    = jart.news_url,
+                image_path  = jart.image_path,
+                title       = jart.title,
+                source_name = jart.source_name,
+                date        = jart.date,
+                topics      = jart.topics,
+                sentiment   = jart.sentiment,
+                tickers     = jart.tickers,
+                tts_type    = "Journalistic style",
+                text        = text_styled_sanitized
+            )
+            # Generate TTS for the public news
+            public_tts = generate_tts_for_public_news(jart.text)
+            pnews.tts_text = sanitize(public_tts)
+
+            j_sess.add(pnews)
+        else:
+            # Update existing record with latest info
+            existing_public.title       = jart.title
+            existing_public.image_path  = jart.image_path
+            existing_public.source_name = jart.source_name
+            existing_public.date        = jart.date
+            existing_public.topics      = jart.topics
+            existing_public.sentiment   = jart.sentiment
+            existing_public.tickers     = jart.tickers
+            existing_public.tts_type    = "Journalistic style"
+            existing_public.text        = text_styled_sanitized
+
+            # Re-generate TTS for any updated text
+            public_tts = generate_tts_for_public_news(jart.text)
+            existing_public.tts_text = sanitize(public_tts)
+
     j_sess.commit()
     j_sess.close()
 
 
+def generate_journalistic_text(article_text: str) -> str:
+    """
+    Uses ChatGPT to rewrite `article_text` in a Journalistic style.
+    """
+    if not article_text.strip():
+        return "No content available."
+
+    prompt = f"""
+    Please rewrite the following text in a clear, concise Journalistic style,
+    keeping it under ~150 words:
+
+    \"\"\"{article_text}\"\"\"
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a professional news editor."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        result = response.choices[0].message.content.strip()
+        return result
+    except Exception as e:
+        print("OpenAI Journalistic style error:", e)
+        return "Unable to rewrite in Journalistic style."
+
+
+def generate_tts_for_public_news(journalistic_text: str) -> str:
+    """
+    Generate a ~30-45 second TTS script (like a reels voiceover) 
+    from the already-rewritten journalistic text.
+    """
+    if not journalistic_text.strip():
+        return "No content to speak."
+
+    prompt = f"""
+    Please create a short news voiceover (~30-45 seconds) from the text below.
+    Keep it concise and engaging. Provide ONLY the voiceover script in your response:
+
+    \"\"\"{journalistic_text}\"\"\"
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a News narrator outputting news voiceover scripts as plain text."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        result = response.choices[0].message.content.strip()
+        return result
+    except Exception as e:
+        print("OpenAI PublicNews TTS error:", e)
+        return "Error generating TTS."
+    
 # ---------------------------------------------------------------------
 # OAUTH 2.0 (Manual)
 # ---------------------------------------------------------------------
@@ -306,7 +450,7 @@ async def logout():
 async def onboarding():
     """
     Show a page that lets user pick topics + style (TTS).
-    If user not logged in, redirect to /.
+    If user not logged in, redirect to / (home).
     """
     user_id = session.get("user_id")
     if not user_id:
@@ -318,10 +462,8 @@ async def onboarding():
 async def save_onboarding():
     """
     1) Save the user's chosen topics + style.
-    2) We'll no longer fetch articles from Google here for each topic.
-       Instead, we rely on journals.db for trending. 
-       We'll do an immediate check for new articles in journals.db 
-       and copy relevant ones to articles.db in user’s style.
+    2) We'll do an immediate check for new articles in journals.db
+       and copy relevant ones to articles.db in the user’s style.
     3) Redirect to the homepage.
     """
     user_id = session.get("user_id")
@@ -356,6 +498,7 @@ async def save_onboarding():
 async def settings():
     """
     Show a form to update topics + style (like onboarding, but user can do it anytime).
+    If user not logged in, we won't allow access.
     """
     user_id = session.get("user_id")
     if not user_id:
@@ -477,7 +620,6 @@ def upsert_journal_article(session, data: dict, topics: str, tts_type: str = "Pl
     """
     Insert or update a JournalArticle record in DB (journals.db).
     Also downloads image. We store text as is (plain text).
-    We won't generate TTS here, to keep it simpler.
     """
     news_url = data.get("news_url", "").strip()
     if not news_url:
@@ -565,11 +707,9 @@ def sanitize(entry: str) -> str:
     sanitized_text = html.escape(entry)
     # Escape backslashes and double quotes
     sanitized_text = sanitized_text.replace('\\', '\\\\').replace('"', '\\"')
-
     # Remove quotes at the start/end if they exist
     if sanitized_text.startswith('"') and sanitized_text.endswith('"'):
         sanitized_text = sanitized_text[1:-1]
-
     return sanitized_text
 
 
@@ -664,80 +804,111 @@ def generate_tts_for_ephemeral(article_dict: dict):
 @app.route("/")
 async def index():
     """
-    - If user not logged in => show sign in button (empty article lists).
-    - If logged in and missing topics/style => onboard.
-    - Otherwise => show custom search results + user-personalized DB articles from articles.db.
-      NOTE: We replaced the old "DB fetch by topic" with fetch of user_email-based articles,
-            sorted newest-first (id desc or any time-based approach).
+    1) If user not logged in, show 'public_news' from journals.db (already styled).
+       - The search and settings won't work (disabled in HTML).
+       - Reels should still work (but will show public_news reels).
+    2) If user is logged in:
+       - If missing topics/style => onboard
+       - Else show ephemeral_data + user-personalized db_data
     """
     user_id = session.get("user_id")
     if not user_id:
-        return await render_template("index.html", user=None, ephemeral_data=[], db_data=[])
+        # NON-LOGGED-IN: show public_news
+        j_sess = SessionLocalJournals()
+        public_articles = j_sess.execute(
+            select(PublicNews).order_by(PublicNews.id.desc())
+        ).scalars().all()
+        j_sess.close()
 
-    db_sess = SessionLocal()
-    db_user = db_sess.execute(
-        select(User).where(User.id == user_id)
-    ).scalar_one_or_none()
+        # Transform them into a simple list of dict
+        public_data = []
+        for a in public_articles:
+            public_data.append({
+                "news_url":    a.news_url,
+                "image_url":   a.image_path,
+                "title":       a.title,
+                "text":        a.text,
+                "source_name": a.source_name,
+                "date":        a.date,
+                "topics":      (a.topics or "").split(","),
+                "sentiment":   a.sentiment,
+                "tickers":     (a.tickers or "").split(","),
+                "tts_text":    a.tts_text,
+                "tts_type":    a.tts_type,
+            })
 
-    if not db_user:
+        return await render_template("index.html",
+                                     user=None,
+                                     ephemeral_data=[],
+                                     db_data=[],      # no user DB data
+                                     public_data=public_data)  # pass public news
+    else:
+        # LOGGED-IN
+        db_sess = SessionLocal()
+        db_user = db_sess.execute(
+            select(User).where(User.id == user_id)
+        ).scalar_one_or_none()
+
+        if not db_user:
+            # user not found => remove session
+            db_sess.close()
+            session.pop("user_id", None)
+            return redirect(url_for("index"))
+
+        # If user missing topics or style => force onboarding
+        if not db_user.topics or not db_user.style:
+            db_sess.close()
+            return redirect(url_for("onboarding"))
+
+        # If user is returning, copy new journal articles => user articles
+        copy_journals_to_user_articles(db_user)
+
+        # 1) Pull ephemeral search results from session
+        ephemeral_data = session.get("search_results", [])
+
+        # 2) Fetch user's personalized articles from articles.db
+        user_articles = db_sess.execute(
+            select(Article)
+            .where(Article.user_email == db_user.email)
+            .order_by(Article.id.desc())  # new news first
+        ).scalars().all()
         db_sess.close()
-        session.pop("user_id", None)
-        return await render_template("index.html", user=None, ephemeral_data=[], db_data=[])
 
-    # If user missing topics or style => force onboarding
-    if not db_user.topics or not db_user.style:
-        db_sess.close()
-        return redirect(url_for("onboarding"))
+        # 3) Convert to dict
+        db_data = []
+        for a in user_articles:
+            db_data.append({
+                "news_url":    a.news_url,
+                "image_url":   a.image_path,
+                "title":       a.title,
+                "text":        a.text,
+                "source_name": a.source_name,
+                "date":        a.date,
+                "topics":      (a.topics or "").split(","),
+                "sentiment":   a.sentiment,
+                "tickers":     (a.tickers or "").split(","),
+                "tts_text":    a.tts_text,
+                "tts_type":    a.tts_type,
+            })
 
-    # If user is returning, check for new journalse again
-    copy_journals_to_user_articles(db_user)
-
-    # 1) Pull ephemeral search results from session
-    ephemeral_data = session.get("search_results", [])
-
-    # 2) Fetch user's personalized articles from articles.db
-    user_articles = db_sess.execute(
-        select(Article)
-        .where(Article.user_email == db_user.email)
-        .order_by(Article.id.desc())  # new news first
-    ).scalars().all()
-    db_sess.close()
-
-    # 3) Convert to dict
-    db_data = []
-    for a in user_articles:
-        db_data.append({
-            "news_url":    a.news_url,
-            "image_url":   a.image_path,
-            "title":       a.title,
-            "text":        a.text,
-            "source_name": a.source_name,
-            "date":        a.date,
-            "topics":      (a.topics or "").split(","),
-            "sentiment":   a.sentiment,
-            "tickers":     (a.tickers or "").split(","),
-            "tts_text":    a.tts_text,
-            "tts_type":    a.tts_type,
-        })
-
-    return await render_template(
-        "index.html",
-        user=db_user,
-        ephemeral_data=ephemeral_data, 
-        db_data=db_data
-    )
+        return await render_template(
+            "index.html",
+            user=db_user,
+            ephemeral_data=ephemeral_data,
+            db_data=db_data,
+            public_data=[]  # no need for public articles if logged in
+        )
 
 
 @app.route("/search", methods=["POST"])
 async def do_search():
     """
-    - Perform Google search (CSE).
-    - Generate ephemeral TTS for each result.
-    - Store them in session["search_results"].
-    - Do NOT store in DB. Keep custom search as is.
+    - If user is NOT logged in => ignore/redirect (disabled).
+    - If user is logged in => do normal search flow.
     """
     user_id = session.get("user_id")
     if not user_id:
+        # Non-logged-in => cannot do search
         return redirect(url_for("index"))
 
     form_data = await request.form
@@ -776,59 +947,86 @@ async def do_search():
 @app.route("/reels")
 async def reels():
     """
-    Shows a reels-style page with combined ephemeral + user-personalized DB articles
-    in the exact same order as index.html:
-      ephemeral_data first, then db_data
+    Shows a reels-style page:
+      - If user is logged in => ephemeral_data first, then user's DB articles.
+      - If user is NOT logged in => show public_news articles.
     """
     user_id = session.get("user_id")
     if not user_id:
-        return redirect(url_for("index"))
+        # Non-logged-in => show public_news in reels
+        j_sess = SessionLocalJournals()
+        public_articles = j_sess.execute(
+            select(PublicNews).order_by(PublicNews.id.desc())
+        ).scalars().all()
+        j_sess.close()
 
-    db_sess = SessionLocal()
-    db_user = db_sess.execute(
-        select(User).where(User.id == user_id)
-    ).scalar_one_or_none()
+        public_data = []
+        for a in public_articles:
+            public_data.append({
+                "news_url":    a.news_url,
+                "image_url":   a.image_path,
+                "title":       a.title,
+                "text":        a.text,
+                "source_name": a.source_name,
+                "date":        a.date,
+                "topics":      (a.topics or "").split(","),
+                "sentiment":   a.sentiment,
+                "tickers":     (a.tickers or "").split(","),
+                "tts_text":    a.tts_text,
+                "tts_type":    a.tts_type,
+            })
+        # non-logged-in => just reels for public_data
+        article_index = request.args.get("index", 0, type=int)
+        return await render_template(
+            "reels.html",
+            data=public_data,
+            start_index=article_index
+        )
+    else:
+        # Logged in => ephemeral_data + user-personalized articles
+        db_sess = SessionLocal()
+        db_user = db_sess.execute(
+            select(User).where(User.id == user_id)
+        ).scalar_one_or_none()
 
-    if not db_user:
+        if not db_user:
+            db_sess.close()
+            return redirect(url_for("index"))
+
+        ephemeral_data = session.get("search_results", [])
+
+        # then fetch user's personalized articles
+        user_articles = db_sess.execute(
+            select(Article)
+            .where(Article.user_email == db_user.email)
+            .order_by(Article.id.desc())
+        ).scalars().all()
         db_sess.close()
-        return redirect(url_for("index"))
 
-    # ephemeral first
-    ephemeral_data = session.get("search_results", [])
+        db_data = []
+        for a in user_articles:
+            db_data.append({
+                "news_url":    a.news_url,
+                "image_url":   a.image_path,
+                "title":       a.title,
+                "text":        a.text,
+                "source_name": a.source_name,
+                "date":        a.date,
+                "topics":      (a.topics or "").split(","),
+                "sentiment":   a.sentiment,
+                "tickers":     (a.tickers or "").split(","),
+                "tts_text":    a.tts_text,
+                "tts_type":    a.tts_type,
+            })
 
-    # then fetch user's personalized articles
-    user_articles = db_sess.execute(
-        select(Article)
-        .where(Article.user_email == db_user.email)
-        .order_by(Article.id.desc())
-    ).scalars().all()
-    db_sess.close()
+        combined_data = ephemeral_data + db_data
+        article_index = request.args.get("index", 0, type=int)
 
-    db_data = []
-    for a in user_articles:
-        db_data.append({
-            "news_url":    a.news_url,
-            "image_url":   a.image_path,
-            "title":       a.title,
-            "text":        a.text,
-            "source_name": a.source_name,
-            "date":        a.date,
-            "topics":      (a.topics or "").split(","),
-            "sentiment":   a.sentiment,
-            "tickers":     (a.tickers or "").split(","),
-            "tts_text":    a.tts_text,
-            "tts_type":    a.tts_type,
-        })
-
-    combined_data = ephemeral_data + db_data
-
-    # get reel index
-    article_index = request.args.get("index", 0, type=int)
-    return await render_template(
-        "reels.html",
-        data=combined_data,
-        start_index=article_index
-    )
+        return await render_template(
+            "reels.html",
+            data=combined_data,
+            start_index=article_index
+        )
 
 
 @app.route('/static/images/<path:filename>')

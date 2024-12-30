@@ -25,7 +25,7 @@
       }
 
       /* Navbar - create a gradient effect and add a subtle shadow */
-.navbar {
+      .navbar {
         background: linear-gradient(135deg, #0077F5, #00CBFF);
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
       }
@@ -152,13 +152,34 @@
       .overlay-progress .progress-bar {
         transition: width 0.3s ease;
       }
+
+      /* Blur overlay for non-logged-in search bar */
+      .blurred-search {
+        position: relative;
+        filter: blur(4px);
+        pointer-events: none;
+      }
+      .login-overlay-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0,0,0,0.5);
+        color: #fff;
+        padding: 1rem 2rem;
+        border-radius: 8px;
+        text-align: center;
+      }
+      .login-overlay-text a.btn {
+        margin-top: 0.5rem;
+      }
     </style>
   </head>
   <body>
     <!-- Navbar -->
     <nav class="navbar navbar-expand-md">
       <div class="container-fluid">
-        <a class="navbar-brand" href="#">CryptoCafe</a>
+        <a class="navbar-brand" href="/">CryptoCafe</a>
         <button
           class="navbar-toggler"
           type="button"
@@ -192,49 +213,126 @@
 
     <!-- Main Content Container -->
     <div class="container mt-4">
+      <!-- SEARCH BAR (always shown, but blurred/disabled if not logged in) -->
+      <div class="mb-4 position-relative" style="margin-bottom:2rem;">
+        {% if user %}
+          <!-- Visible & enabled for logged-in users -->
+          <form
+            action="/search"
+            method="POST"
+            class="row g-3 mb-4"
+            onsubmit="showLoadingOverlay()"
+          >
+            <div class="col-md-9">
+              <input
+                type="text"
+                class="form-control"
+                name="query"
+                placeholder="Search anything..."
+                required
+              >
+            </div>
+            <!-- Hidden TTS type (optional) -->
+            <div hidden>
+              <select class="form-select" name="tts_type">
+                <option value="">(Use My Default Style)</option>
+                <option value="default">Default TTS</option>
+                <option value="radio style">Radio Style</option>
+                <option value="female voice">Female Voice</option>
+                <option value="male voice">Male Voice</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <button class="btn btn-primary w-100">
+                Search &amp; Fetch
+              </button>
+            </div>
+          </form>
+        {% else %}
+          <!-- Blurred/disabled for non-logged-in users -->
+          <div class="blurred-search">
+            <form
+              action="#"
+              method="POST"
+              class="row g-3 mb-4"
+            >
+              <div class="col-md-9">
+                <input
+                  type="text"
+                  class="form-control"
+                  name="query"
+                  placeholder="Search anything..."
+                  disabled
+                >
+              </div>
+              <!-- Hidden TTS type (optional) -->
+              <div hidden>
+                <select class="form-select" name="tts_type" disabled>
+                  <option value="">(Use My Default Style)</option>
+                  <option value="default">Default TTS</option>
+                  <option value="radio style">Radio Style</option>
+                  <option value="female voice">Female Voice</option>
+                  <option value="male voice">Male Voice</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <button class="btn btn-secondary w-100" disabled>
+                  Search &amp; Fetch
+                </button>
+              </div>
+            </form>
+          </div>
+          <!-- Overlay text & login button -->
+          <div class="login-overlay-text">
+            <p>Login to see your personalized articles and more</p>
+            <a href="/login" class="btn btn-warning">Login</a>
+          </div>
+        {% endif %}
+      </div>
+
       {% if not user %}
+        <!-- NON-LOGGED-IN: show public_news articles -->
         <div class="hero-text">
           <h1>Welcome to CryptoCafe</h1>
           <p>Your go-to hub for the latest crypto news, curated just for you.
              Sign in to tailor your feed and start exploring!</p>
         </div>
-        <p class="text-center">
-          Please <a href="/login" class="btn btn-primary">Sign in with Google</a> to customize your news feed.
-        </p>
+
+        {% if public_data and public_data|length > 0 %}
+          <h2>Latest News</h2>
+          <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-3">
+            {% for item in public_data %}
+              <div class="col">
+                <div
+                  class="card h-100"
+                  onclick="location.href='/reels?index={{ loop.index0 }}';"
+                  style="cursor:pointer;"
+                >
+                  <img
+                    src="{{ item.image_url }}"
+                    class="card-img-top"
+                    alt="News image"
+                    onerror="this.src='https://via.placeholder.com/350x200.png?text=No+Image';"
+                  >
+                  <div class="card-body">
+                    <h5 class="card-title">{{ item.title }}</h5>
+                    <p class="card-text">{{ item.text }}</p>
+                  </div>
+                  <div class="card-footer">
+                    <small class="text-muted">Source: {{ item.source_name }}</small><br>
+                    <small class="text-muted">Date: {{ item.date }}</small>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted mt-3">No public news articles available yet.</p>
+        {% endif %}
+
       {% else %}
+        <!-- LOGGED-IN: show ephemeral search results + personalized articles -->
         <h1>Hello, {{ user.name }}!</h1>
-        <!-- Search Form -->
-        <form
-          action="/search"
-          method="POST"
-          class="row g-3 mb-4"
-          onsubmit="showLoadingOverlay()"
-        >
-          <div class="col-md-9">
-            <input
-              type="text"
-              class="form-control"
-              name="query"
-              placeholder="Search anything..."
-              required
-            >
-          </div>
-          <!-- Hidden TTS type (optional) -->
-          <div hidden>
-            <select class="form-select" name="tts_type">
-              <option value="">(Use My Default Style)</option>
-              <option value="default">Default TTS</option>
-              <option value="radio style">Radio Style</option>
-              <option value="female voice">Female Voice</option>
-              <option value="male voice">Male Voice</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <button class="btn btn-primary w-100">
-              Search &amp; Fetch
-            </button>
-          </div>
-        </form>
 
         <!-- 1) Search Results (ephemeral_data) first -->
         {% if ephemeral_data and ephemeral_data|length > 0 %}
