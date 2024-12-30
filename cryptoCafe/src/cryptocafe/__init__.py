@@ -186,7 +186,7 @@ async def fetch_trending_news_loop():
             await fetch_and_update_journals_db()
         except Exception as e:
             print("ERROR in fetch_trending_news_loop:", e)
-        await asyncio.sleep(300)  # 5 minutes
+        await asyncio.sleep(3600)  # 5 minutes
 
 async def fetch_and_update_journals_db():
     """
@@ -271,8 +271,8 @@ def generate_journalistic_text(article_text: str) -> str:
         return "No content available."
 
     prompt = f"""
-    Please rewrite the following text in a clear, concise Journalistic style,
-    keeping it under ~150 words:
+    Please create a youtube short reels script (~30-45 seconds) voiceover summarizing the following article in a Journalistic style.
+    Keep it concise but natural. Include ONLY the voiceover script in your response.
 
     \"\"\"{article_text}\"\"\"
     """
@@ -280,7 +280,7 @@ def generate_journalistic_text(article_text: str) -> str:
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a professional news editor."},
+                {"role": "system", "content": "You are a News narrator outputting news voiceover scripts as plain text."},
                 {"role": "user", "content": prompt},
             ],
         )
@@ -703,14 +703,35 @@ def copy_journals_to_user_articles(user_obj):
     j_sess.close()
 
 
+UNWANTED_ENTITIES_REGEX = re.compile(r'&#x[0-9A-Fa-f]+;')
+
 def sanitize(entry: str) -> str:
-    sanitized_text = html.escape(entry)
-    # Escape backslashes and double quotes
-    sanitized_text = sanitized_text.replace('\\', '\\\\').replace('"', '\\"')
-    # Remove quotes at the start/end if they exist
-    if sanitized_text.startswith('"') and sanitized_text.endswith('"'):
-        sanitized_text = sanitized_text[1:-1]
-    return sanitized_text
+    """
+    1. Decode HTML entities (e.g., &amp; -> &, &#x27; -> ', etc.).
+    2. Remove any leftover hex entities (e.g., &#x27;) via regex in one pass.
+    3. HTML-escape the result to prevent injection.
+    4. Escape backslashes and quotes.
+    5. Strip leading/trailing quotes if necessary.
+    """
+    # Step 1: Decode HTML entities
+    decoded_text = html.unescape(entry)
+
+    # Step 2: Remove any leftover hex entities like &#x27; in one pass
+    cleaned_text = UNWANTED_ENTITIES_REGEX.sub('', decoded_text)
+
+    # Step 3: HTML-escape for safety
+    escaped_text = html.escape(cleaned_text)
+
+    # Step 4: Escape backslashes and double quotes
+    #         so they won't break JSON/JS strings, etc.
+    escaped_text = escaped_text.replace('\\', '\\\\').replace('"', '\\"')
+
+    # Step 5: Strip leading/trailing quotes if your use-case needs it
+    if escaped_text.startswith('"') and escaped_text.endswith('"'):
+        escaped_text = escaped_text[1:-1]
+
+    return escaped_text
+
 
 
 def generate_tts_for_db_article(article_obj: Article):
@@ -905,6 +926,8 @@ async def do_search():
     """
     - If user is NOT logged in => ignore/redirect (disabled).
     - If user is logged in => do normal search flow.
+      1) Store original text in 'normal_text'.
+      2) Sanitize 'text' for TTS generation.
     """
     user_id = session.get("user_id")
     if not user_id:
@@ -923,12 +946,19 @@ async def do_search():
 
     results = google_cse_search(query, limit=4)
     ephemeral_articles = []
+
     for r in results:
+        # 1) Store original text
+        r["normal_text"] = r["text"]
+
+        # 2) Sanitize text before TTS
+        r["text"] = sanitize(r["text"])
         r["tts_type"] = tts_type
-        # generate ephemeral TTS
+
+        # 3) Generate ephemeral TTS (which will use the sanitized text)
         generate_tts_for_ephemeral(r)
 
-        # download image to local
+        # 4) Download image to local
         image_url = r.get("image_url") or ""
         if image_url:
             filename = f"{abs(hash(image_url))}.jpg"
@@ -939,10 +969,10 @@ async def do_search():
 
         ephemeral_articles.append(r)
 
-    # Save ephemeral articles in session
+    # Finally, store the entire ephemeral set in the session
     session["search_results"] = ephemeral_articles
-    return redirect(url_for("index"))
 
+    return redirect(url_for("index"))
 
 @app.route("/reels")
 async def reels():
