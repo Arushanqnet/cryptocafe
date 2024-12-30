@@ -1,5 +1,4 @@
 .env
 *pycache
-images
 articles.db
 journals.db
