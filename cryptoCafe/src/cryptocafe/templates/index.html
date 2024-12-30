@@ -73,6 +73,7 @@
       .form-control, .form-select {
         background: rgba(255, 255, 255, 0.1);
         color: #fff;
+        border-radius: 15px;
       }
       .form-control:focus, .form-select:focus {
         border-color: #00CBFF;
@@ -161,7 +162,7 @@
       }
       .login-overlay-text {
         position: absolute;
-        top: 50%;
+        top: 45%;
         left: 50%;
         transform: translate(-50%, -50%);
         background: rgba(0,0,0,0.5);
@@ -169,6 +170,7 @@
         padding: 1rem 2rem;
         border-radius: 8px;
         text-align: center;
+        width: 80%;
       }
       .login-overlay-text a.btn {
         margin-top: 0.5rem;
@@ -244,7 +246,7 @@
             </div>
             <div class="col-md-3">
               <button class="btn btn-primary w-100">
-                Search &amp; Fetch
+                Search
               </button>
             </div>
           </form>
@@ -285,7 +287,7 @@
           <!-- Overlay text & login button -->
           <div class="login-overlay-text">
             <p>Login to see your personalized articles and more</p>
-            <a href="/login" class="btn btn-warning">Login</a>
+            <a href="/login" class="btn btn-primary w-100">Login</a>
           </div>
         {% endif %}
       </div>
@@ -408,7 +410,7 @@
         <!-- Replace with your own icon/logo -->
         <img
           class="overlay-logo"
-          src="https://via.placeholder.com/100x100.png?text=Logo"
+          src="https://cdn-icons-png.flaticon.com/512/4618/4618577.png"
           alt="Loading Logo"
         >
         <div class="mb-3">Loading, please wait...</div>
