@@ -124,26 +124,26 @@ class JournalArticle(JournalsBase):
     created_at  = Column(Integer, default=lambda: int(time.time()))
 
 
-class PublicNews(JournalsBase):
-    """
-    Stores publicly-available news in a 'Journalistic style',
-    shown to non-logged-in users.
-    """
-    __tablename__ = "public_news"
+# class PublicNews(JournalsBase):
+#     """
+#     Stores publicly-available news in a 'Journalistic style',
+#     shown to non-logged-in users.
+#     """
+#     __tablename__ = "public_news"
 
-    id          = Column(Integer, primary_key=True)
-    news_url    = Column(String, unique=True, nullable=False)
-    image_path  = Column(String, nullable=True)
-    title       = Column(String, nullable=True)
-    text        = Column(Text, nullable=True)  # holds text in a journalistic style
-    source_name = Column(String, nullable=True)
-    date        = Column(String, nullable=True)
-    topics      = Column(String, nullable=True)
-    sentiment   = Column(String, nullable=True)
-    tickers     = Column(String, nullable=True)
-    tts_text    = Column(Text, nullable=True)
-    tts_type    = Column(String, nullable=True)
-    created_at  = Column(Integer, default=lambda: int(time.time()))
+#     id          = Column(Integer, primary_key=True)
+#     news_url    = Column(String, unique=True, nullable=False)
+#     image_path  = Column(String, nullable=True)
+#     title       = Column(String, nullable=True)
+#     text        = Column(Text, nullable=True)  # holds text in a journalistic style
+#     source_name = Column(String, nullable=True)
+#     date        = Column(String, nullable=True)
+#     topics      = Column(String, nullable=True)
+#     sentiment   = Column(String, nullable=True)
+#     tickers     = Column(String, nullable=True)
+#     tts_text    = Column(Text, nullable=True)
+#     tts_type    = Column(String, nullable=True)
+#     created_at  = Column(Integer, default=lambda: int(time.time()))
 
 db_journals_file = "sqlite:///journals.db"
 journals_engine = create_engine(db_journals_file, echo=False)
@@ -199,68 +199,68 @@ async def fetch_and_update_journals_db():
         results = google_cse_search(topic, limit=3)
         for r in results:
             # upsert into journal_articles
-            upsert_journal_article(j_sess, r, topics=topic, tts_type="Plain text")
+            upsert_journal_article(j_sess, r, topics=topic, tts_type="Journalistic style")
 
     j_sess.commit()
 
     # After updating journal_articles, update public_news
-    update_public_news()
+    # update_public_news()
 
     j_sess.close()
 
-def update_public_news():
-    """
-    Pull all journal_articles, upsert them into public_news
-    in a 'Journalistic style' and generate TTS for it.
-    """
-    j_sess = SessionLocalJournals()
-    all_jarts = j_sess.execute(select(JournalArticle)).scalars().all()
+# def update_public_news():
+#     """
+#     Pull all journal_articles, upsert them into public_news
+#     in a 'Journalistic style' and generate TTS for it.
+#     """
+#     j_sess = SessionLocalJournals()
+#     all_jarts = j_sess.execute(select(JournalArticle)).scalars().all()
 
-    for jart in all_jarts:
-        # Check if already exists in public_news
-        existing_public = j_sess.execute(
-            select(PublicNews).where(PublicNews.news_url == jart.news_url)
-        ).scalar_one_or_none()
+#     for jart in all_jarts:
+#         # Check if already exists in public_news
+#         existing_public = j_sess.execute(
+#             select(PublicNews).where(PublicNews.news_url == jart.news_url)
+#         ).scalar_one_or_none()
 
-        text_styled_sanitized = sanitize(jart.text)
+#         text_styled_sanitized = sanitize(jart.text)
 
-        if existing_public is None:
-            # Create new PublicNews
-            pnews = PublicNews(
-                news_url    = jart.news_url,
-                image_path  = jart.image_path,
-                title       = jart.title,
-                source_name = jart.source_name,
-                date        = jart.date,
-                topics      = jart.topics,
-                sentiment   = jart.sentiment,
-                tickers     = jart.tickers,
-                tts_type    = "Journalistic style",
-                text        = text_styled_sanitized
-            )
-            # Generate TTS for the public news
-            public_tts = generate_tts_for_public_news(jart.text)
-            pnews.tts_text = sanitize(public_tts)
+#         if existing_public is None:
+#             # Create new PublicNews
+#             pnews = PublicNews(
+#                 news_url    = jart.news_url,
+#                 image_path  = jart.image_path,
+#                 title       = jart.title,
+#                 source_name = jart.source_name,
+#                 date        = jart.date,
+#                 topics      = jart.topics,
+#                 sentiment   = jart.sentiment,
+#                 tickers     = jart.tickers,
+#                 tts_type    = "Journalistic style",
+#                 text        = text_styled_sanitized
+#             )
+#             # Generate TTS for the public news
+#             public_tts = generate_tts_for_public_news(jart.text)
+#             pnews.tts_text = sanitize(public_tts)
 
-            j_sess.add(pnews)
-        else:
-            # Update existing record with latest info
-            existing_public.title       = jart.title
-            existing_public.image_path  = jart.image_path
-            existing_public.source_name = jart.source_name
-            existing_public.date        = jart.date
-            existing_public.topics      = jart.topics
-            existing_public.sentiment   = jart.sentiment
-            existing_public.tickers     = jart.tickers
-            existing_public.tts_type    = "Journalistic style"
-            existing_public.text        = text_styled_sanitized
+#             j_sess.add(pnews)
+#         else:
+#             # Update existing record with latest info
+#             existing_public.title       = jart.title
+#             existing_public.image_path  = jart.image_path
+#             existing_public.source_name = jart.source_name
+#             existing_public.date        = jart.date
+#             existing_public.topics      = jart.topics
+#             existing_public.sentiment   = jart.sentiment
+#             existing_public.tickers     = jart.tickers
+#             existing_public.tts_type    = "Journalistic style"
+#             existing_public.text        = text_styled_sanitized
 
-            # Re-generate TTS for any updated text
-            public_tts = generate_tts_for_public_news(jart.text)
-            existing_public.tts_text = sanitize(public_tts)
+#             # Re-generate TTS for any updated text
+#             public_tts = generate_tts_for_public_news(jart.text)
+#             existing_public.tts_text = sanitize(public_tts)
 
-    j_sess.commit()
-    j_sess.close()
+#     j_sess.commit()
+#     j_sess.close()
 
 
 def generate_journalistic_text(article_text: str) -> str:
@@ -272,7 +272,7 @@ def generate_journalistic_text(article_text: str) -> str:
 
     prompt = f"""
     Please create a youtube short reels script (~30-45 seconds) voiceover summarizing the following article in a Journalistic style.
-    Keep it concise but natural. Include ONLY the voiceover script in your response.
+    Keep it concise but natural. Include ONLY the voiceover script in your response. Important:- In response Don't include any unicodes.
 
     \"\"\"{article_text}\"\"\"
     """
@@ -291,33 +291,33 @@ def generate_journalistic_text(article_text: str) -> str:
         return "Unable to rewrite in Journalistic style."
 
 
-def generate_tts_for_public_news(journalistic_text: str) -> str:
-    """
-    Generate a ~30-45 second TTS script (like a reels voiceover) 
-    from the already-rewritten journalistic text.
-    """
-    if not journalistic_text.strip():
-        return "No content to speak."
+# def generate_tts_for_public_news(journalistic_text: str) -> str:
+#     """
+#     Generate a ~30-45 second TTS script (like a reels voiceover) 
+#     from the already-rewritten journalistic text.
+#     """
+#     if not journalistic_text.strip():
+#         return "No content to speak."
 
-    prompt = f"""
-    Please create a short news voiceover (~30-45 seconds) from the text below.
-    Keep it concise and engaging. Provide ONLY the voiceover script in your response:
+#     prompt = f"""
+#     Please create a short news voiceover (~30-45 seconds) from the text below.
+#     Keep it concise and engaging. Provide ONLY the voiceover script in your response:
 
-    \"\"\"{journalistic_text}\"\"\"
-    """
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are a News narrator outputting news voiceover scripts as plain text."},
-                {"role": "user", "content": prompt},
-            ],
-        )
-        result = response.choices[0].message.content.strip()
-        return result
-    except Exception as e:
-        print("OpenAI PublicNews TTS error:", e)
-        return "Error generating TTS."
+#     \"\"\"{journalistic_text}\"\"\"
+#     """
+#     try:
+#         response = client.chat.completions.create(
+#             model="gpt-4o",
+#             messages=[
+#                 {"role": "system", "content": "You are a News narrator outputting news voiceover scripts as plain text."},
+#                 {"role": "user", "content": prompt},
+#             ],
+#         )
+#         result = response.choices[0].message.content.strip()
+#         return result
+#     except Exception as e:
+#         print("OpenAI PublicNews TTS error:", e)
+#         return "Error generating TTS."
     
 # ---------------------------------------------------------------------
 # OAUTH 2.0 (Manual)
@@ -616,7 +616,7 @@ def download_image(image_url: str, filename: str) -> str:
     return local_path
 
 
-def upsert_journal_article(session, data: dict, topics: str, tts_type: str = "Plain text"):
+def upsert_journal_article(session, data: dict, topics: str, tts_type: str = "Journalistic style"):
     """
     Insert or update a JournalArticle record in DB (journals.db).
     Also downloads image. We store text as is (plain text).
@@ -634,14 +634,16 @@ def upsert_journal_article(session, data: dict, topics: str, tts_type: str = "Pl
     else:
         article = JournalArticle(news_url=news_url)
         session.add(article)
-
+    sanitized__text=sanitize(data.get("text", ""))
+    tts_text=generate_journalistic_text(sanitized__text)
     article.title       = data.get("title", "")
-    article.text        = data.get("text", "")
+    article.text        = sanitized__text
     article.source_name = data.get("source_name", "")
     article.date        = data.get("date", "")
     article.topics      = topics
     article.sentiment   = data.get("sentiment", "")
     article.tickers     = data.get("tickers", "")
+    article.tts_text    = sanitize(tts_text)
     article.tts_type    = tts_type
 
     image_url = data.get("image_url", "https://via.placeholder.com/360x640.png?text=No+Image")
@@ -704,38 +706,48 @@ def copy_journals_to_user_articles(user_obj):
 
 
 UNWANTED_ENTITIES_REGEX = re.compile(r'&#x[0-9A-Fa-f]+;')
+NON_ASCII_REGEX = re.compile(r'[^\x00-\x7F]+')
+NON_WORDS_REGEX = re.compile(r'[^a-zA-Z0-9\s]+')  # Keep only letters, digits, and whitespace
+MULTI_SPACE_REGEX = re.compile(r'\s+')
 
 def sanitize(entry: str) -> str:
     """
-    1) Decode HTML entities (e.g. &amp; -> &, &#x27; -> ', etc.).
-    2) Remove leftover hex entities (e.g., &#x27;) using one regex pass.
-    3) Remove ALL non-ASCII characters (unicode) outside range 0-127.
-    4) HTML-escape the result to prevent injection.
-    5) Escape backslashes and quotes.
-    6) Strip leading/trailing quotes if needed.
+    1) Decode HTML entities (e.g., &amp; -> &, &#x27; -> ', etc.).
+    2) Remove leftover hex entities (&#x27;).
+    3) Remove all non-ASCII characters (unicode) outside 0-127.
+    4) Keep only letters, digits, and whitespace (removing punctuation, emojis, etc.).
+    5) (Optional) Collapse multiple spaces into one, then strip.
+    6) HTML-escape the result to prevent injection.
+    7) Escape backslashes and quotes.
+    8) Strip leading/trailing quotes if desired.
     """
     # Step 1: Decode HTML entities
     decoded_text = html.unescape(entry)
-
+    
     # Step 2: Remove leftover hex entities
     cleaned_text = UNWANTED_ENTITIES_REGEX.sub('', decoded_text)
-
-    # Step 3: Remove all non-ASCII characters (anything outside 0x00-0x7F)
-    #         This also removes emojis and other extended Unicode.
-    cleaned_text = re.sub(r'[^\x00-\x7F]+', '', cleaned_text)
-
-    # Step 4: HTML-escape (to prevent HTML/script injection)
+    
+    # Step 3: Remove all non-ASCII characters
+    cleaned_text = NON_ASCII_REGEX.sub('', cleaned_text)
+    
+    # Step 4: Keep only letters, digits, and whitespace
+    cleaned_text = NON_WORDS_REGEX.sub('', cleaned_text)
+    
+    # Step 5 (optional): Collapse multiple spaces into a single space, then strip
+    cleaned_text = MULTI_SPACE_REGEX.sub(' ', cleaned_text).strip()
+    
+    # Step 6: HTML-escape the result
     escaped_text = html.escape(cleaned_text)
-
-    # Step 5: Escape backslashes and double quotes for safety
+    
+    # Step 7: Escape backslashes and double quotes for safety
     escaped_text = escaped_text.replace('\\', '\\\\').replace('"', '\\"')
-
-    # Step 6: Strip leading/trailing quotes if your use-case requires it
+    
+    # Step 8: Strip leading/trailing quotes if needed
     if escaped_text.startswith('"') and escaped_text.endswith('"'):
         escaped_text = escaped_text[1:-1]
-
+    
     return escaped_text
-
+#convert common news to tts for specific user
 def generate_tts_for_db_article(article_obj: Article):
     """
     Generates TTS text for a user-specific Article object, storing in article_obj.tts_text.
@@ -780,6 +792,7 @@ def generate_tts_for_db_article(article_obj: Article):
 # ---------------------------------------------------------------------
 # EPHEMERAL (NON-DB) SEARCH UTILS
 # ---------------------------------------------------------------------
+#Search panni vaara results kku aana tts generation (dictionary format)
 def generate_tts_for_ephemeral(article_dict: dict):
     """
     Generates TTS text for a single ephemeral search result (a dict).
@@ -839,7 +852,7 @@ async def index():
         # NON-LOGGED-IN: show public_news
         j_sess = SessionLocalJournals()
         public_articles = j_sess.execute(
-            select(PublicNews).order_by(PublicNews.id.desc())
+            select(JournalArticle).order_by(JournalArticle.id.desc())
         ).scalars().all()
         j_sess.close()
 
@@ -988,7 +1001,7 @@ async def reels():
         # Non-logged-in => show public_news in reels
         j_sess = SessionLocalJournals()
         public_articles = j_sess.execute(
-            select(PublicNews).order_by(PublicNews.id.desc())
+            select(JournalArticle).order_by(JournalArticle.id.desc())
         ).scalars().all()
         j_sess.close()
 
