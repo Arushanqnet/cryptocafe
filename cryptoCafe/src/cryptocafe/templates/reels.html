@@ -445,8 +445,6 @@
       <i class="fas fa-heart icon-btn" id="like-btn" title="Like"></i>
       <i class="fas fa-share icon-btn" id="share-btn" title="Share"></i>
       <i class="fas fa-play icon-btn" id="play-pause-icon" title="Play/Pause"></i>
-
-      <!-- NEW Up/Down arrows -->
       <i class="fas fa-chevron-down icon-btn" id="next-btn" title="Next Reel"></i>
     </div>
 
@@ -539,7 +537,7 @@
         synth.cancel();
       }
       utterance = new SpeechSynthesisUtterance(text);
-      // Hardcode TTS
+      // Hardcode TTS settings
       utterance.volume = 1.0;
       utterance.rate   = 1.0;
       utterance.pitch  = 1.0;
@@ -718,19 +716,24 @@
 
     // --------------- PLAY / PAUSE ---------------
     function togglePlayPause() {
+      // If TTS is currently speaking or paused, toggle
       if (synth.speaking) {
         if (isPaused) {
+          // Resume
           synth.resume();
           isPaused = false;
           playPauseIcon.classList.remove('fa-play');
           playPauseIcon.classList.add('fa-pause');
         } else {
+          // Pause
           synth.pause();
           isPaused = true;
           playPauseIcon.classList.remove('fa-pause');
           playPauseIcon.classList.add('fa-play');
         }
       } else {
+        // If not speaking at all (either just finished or hasn't started),
+        // speak again from the beginning
         const item = newsItems[currentIndex];
         speakText(item.tts_text || '');
       }
@@ -755,7 +758,7 @@
     // Initialize with first item
     showNewsItem(currentIndex);
 
-    // Play/Pause
+    // Play/Pause (icon)
     playPauseIcon.addEventListener('click', (e) => {
       e.stopPropagation();
       togglePlayPause();
@@ -771,10 +774,11 @@
       e.stopPropagation();
       console.log("Share clicked for item:", currentIndex);
     });
+
     // Clicking background => toggle TTS
     document.getElementById('reels-container').addEventListener('click', (e) => {
-      // Don’t toggle TTS if clicked an icon or top bar
-      if (e.target.classList.contains('icon-btn') || e.target.closest('.top-bar')) return;
+      // Skip only if the top-bar is clicked (back arrow).
+      if (e.target.closest('.top-bar')) return;
       togglePlayPause();
     });
 
@@ -820,10 +824,18 @@
       if (e.deltaY > 0) nextItem(); else prevItem();
     });
 
-    // “Back to Home” arrow
+    // Stop TTS on "Back to Home" arrow
     backHomeBtn.addEventListener('click', () => {
-      // Change this to your actual home route if needed:
-      window.location.href = '/';
+      synth.cancel();    // <--- stops the TTS immediately
+      window.location.href = '/'; 
+    });
+
+    // Also stop TTS if user navigates back or closes tab (browser-based)
+    window.addEventListener('popstate', () => {
+      synth.cancel();
+    });
+    window.addEventListener('beforeunload', () => {
+      synth.cancel();
     });
 
     // Show/hide bottom overlay
