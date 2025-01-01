@@ -97,10 +97,9 @@ SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(engine)
 
 # ---------------------------------------------------------------------
-# Database #2: journals.db (master trending articles) + public_news
+# Database #2: journals.db (master trending articles) + public_news + search_article
 # ---------------------------------------------------------------------
 JournalsBase = declarative_base()
-
 
 class JournalArticle(JournalsBase):
     """
@@ -124,26 +123,27 @@ class JournalArticle(JournalsBase):
     created_at  = Column(Integer, default=lambda: int(time.time()))
 
 
-# class PublicNews(JournalsBase):
-#     """
-#     Stores publicly-available news in a 'Journalistic style',
-#     shown to non-logged-in users.
-#     """
-#     __tablename__ = "public_news"
+class SearchArticle(JournalsBase):
+    """
+    Stores each search result from any user, so that if the same or another user
+    searches again, we can retrieve from here directly (and only regenerate TTS
+    if their style differs).
+    """
+    __tablename__ = "search_article"
 
-#     id          = Column(Integer, primary_key=True)
-#     news_url    = Column(String, unique=True, nullable=False)
-#     image_path  = Column(String, nullable=True)
-#     title       = Column(String, nullable=True)
-#     text        = Column(Text, nullable=True)  # holds text in a journalistic style
-#     source_name = Column(String, nullable=True)
-#     date        = Column(String, nullable=True)
-#     topics      = Column(String, nullable=True)
-#     sentiment   = Column(String, nullable=True)
-#     tickers     = Column(String, nullable=True)
-#     tts_text    = Column(Text, nullable=True)
-#     tts_type    = Column(String, nullable=True)
-#     created_at  = Column(Integer, default=lambda: int(time.time()))
+    id          = Column(Integer, primary_key=True)
+    query       = Column(String, nullable=False)
+    user_id     = Column(Integer, nullable=True)         # The user who first searched
+    news_url    = Column(String, nullable=False)         # Link to the article
+    image_path  = Column(String, nullable=True)          # Downloaded local path
+    title       = Column(String, nullable=True)
+    text        = Column(Text, nullable=True)            # sanitized snippet
+    source_name = Column(String, nullable=True)
+    date        = Column(String, nullable=True)
+    tts_text    = Column(Text, nullable=True)
+    tts_type    = Column(String, nullable=True)
+    created_at  = Column(Integer, default=lambda: int(time.time()))
+
 
 db_journals_file = "sqlite:///journals.db"
 journals_engine = create_engine(db_journals_file, echo=False)
@@ -176,17 +176,17 @@ background_task_running = False
 
 async def fetch_trending_news_loop():
     """
-    Infinite loop that runs every 5 minutes (300s).
+    Infinite loop that runs every 60 minutes (3600s).
     Fetches trending news for each topic in TRENDING_TOPICS,
     upserts them into journals.db, and also updates public_news.
-    Then sleeps 5 mins.
+    Then sleeps 1 hour.
     """
     while True:
         try:
             await fetch_and_update_journals_db()
         except Exception as e:
             print("ERROR in fetch_trending_news_loop:", e)
-        await asyncio.sleep(3600)  # 5 minutes
+        await asyncio.sleep(3600)  # 1 hour
 
 async def fetch_and_update_journals_db():
     """
@@ -202,65 +202,7 @@ async def fetch_and_update_journals_db():
             upsert_journal_article(j_sess, r, topics=topic, tts_type="Journalistic style")
 
     j_sess.commit()
-
-    # After updating journal_articles, update public_news
-    # update_public_news()
-
     j_sess.close()
-
-# def update_public_news():
-#     """
-#     Pull all journal_articles, upsert them into public_news
-#     in a 'Journalistic style' and generate TTS for it.
-#     """
-#     j_sess = SessionLocalJournals()
-#     all_jarts = j_sess.execute(select(JournalArticle)).scalars().all()
-
-#     for jart in all_jarts:
-#         # Check if already exists in public_news
-#         existing_public = j_sess.execute(
-#             select(PublicNews).where(PublicNews.news_url == jart.news_url)
-#         ).scalar_one_or_none()
-
-#         text_styled_sanitized = sanitize(jart.text)
-
-#         if existing_public is None:
-#             # Create new PublicNews
-#             pnews = PublicNews(
-#                 news_url    = jart.news_url,
-#                 image_path  = jart.image_path,
-#                 title       = jart.title,
-#                 source_name = jart.source_name,
-#                 date        = jart.date,
-#                 topics      = jart.topics,
-#                 sentiment   = jart.sentiment,
-#                 tickers     = jart.tickers,
-#                 tts_type    = "Journalistic style",
-#                 text        = text_styled_sanitized
-#             )
-#             # Generate TTS for the public news
-#             public_tts = generate_tts_for_public_news(jart.text)
-#             pnews.tts_text = sanitize(public_tts)
-
-#             j_sess.add(pnews)
-#         else:
-#             # Update existing record with latest info
-#             existing_public.title       = jart.title
-#             existing_public.image_path  = jart.image_path
-#             existing_public.source_name = jart.source_name
-#             existing_public.date        = jart.date
-#             existing_public.topics      = jart.topics
-#             existing_public.sentiment   = jart.sentiment
-#             existing_public.tickers     = jart.tickers
-#             existing_public.tts_type    = "Journalistic style"
-#             existing_public.text        = text_styled_sanitized
-
-#             # Re-generate TTS for any updated text
-#             public_tts = generate_tts_for_public_news(jart.text)
-#             existing_public.tts_text = sanitize(public_tts)
-
-#     j_sess.commit()
-#     j_sess.close()
 
 
 def generate_journalistic_text(article_text: str) -> str:
@@ -291,34 +233,6 @@ def generate_journalistic_text(article_text: str) -> str:
         return "Unable to rewrite in Journalistic style."
 
 
-# def generate_tts_for_public_news(journalistic_text: str) -> str:
-#     """
-#     Generate a ~30-45 second TTS script (like a reels voiceover) 
-#     from the already-rewritten journalistic text.
-#     """
-#     if not journalistic_text.strip():
-#         return "No content to speak."
-
-#     prompt = f"""
-#     Please create a short news voiceover (~30-45 seconds) from the text below.
-#     Keep it concise and engaging. Provide ONLY the voiceover script in your response:
-
-#     \"\"\"{journalistic_text}\"\"\"
-#     """
-#     try:
-#         response = client.chat.completions.create(
-#             model="gpt-4o",
-#             messages=[
-#                 {"role": "system", "content": "You are a News narrator outputting news voiceover scripts as plain text."},
-#                 {"role": "user", "content": prompt},
-#             ],
-#         )
-#         result = response.choices[0].message.content.strip()
-#         return result
-#     except Exception as e:
-#         print("OpenAI PublicNews TTS error:", e)
-#         return "Error generating TTS."
-    
 # ---------------------------------------------------------------------
 # OAUTH 2.0 (Manual)
 # ---------------------------------------------------------------------
@@ -634,8 +548,10 @@ def upsert_journal_article(session, data: dict, topics: str, tts_type: str = "Jo
     else:
         article = JournalArticle(news_url=news_url)
         session.add(article)
-    sanitized__text=sanitize(data.get("text", ""))
-    tts_text=generate_journalistic_text(sanitized__text)
+
+    sanitized__text = sanitize(data.get("text", ""))
+    tts_text = generate_journalistic_text(sanitized__text)
+
     article.title       = data.get("title", "")
     article.text        = sanitized__text
     article.source_name = data.get("source_name", "")
@@ -747,7 +663,7 @@ def sanitize(entry: str) -> str:
         escaped_text = escaped_text[1:-1]
     
     return escaped_text
-#convert common news to tts for specific user
+
 def generate_tts_for_db_article(article_obj: Article):
     """
     Generates TTS text for a user-specific Article object, storing in article_obj.tts_text.
@@ -792,7 +708,6 @@ def generate_tts_for_db_article(article_obj: Article):
 # ---------------------------------------------------------------------
 # EPHEMERAL (NON-DB) SEARCH UTILS
 # ---------------------------------------------------------------------
-#Search panni vaara results kku aana tts generation (dictionary format)
 def generate_tts_for_ephemeral(article_dict: dict):
     """
     Generates TTS text for a single ephemeral search result (a dict).
@@ -876,8 +791,8 @@ async def index():
         return await render_template("index.html",
                                      user=None,
                                      ephemeral_data=[],
-                                     db_data=[],      # no user DB data
-                                     public_data=public_data)  # pass public news
+                                     db_data=[],     
+                                     public_data=public_data)
     else:
         # LOGGED-IN
         db_sess = SessionLocal()
@@ -906,7 +821,7 @@ async def index():
         user_articles = db_sess.execute(
             select(Article)
             .where(Article.user_email == db_user.email)
-            .order_by(Article.id.desc())  # new news first
+            .order_by(Article.id.desc())
         ).scalars().all()
         db_sess.close()
 
@@ -932,17 +847,27 @@ async def index():
             user=db_user,
             ephemeral_data=ephemeral_data,
             db_data=db_data,
-            public_data=[]  # no need for public articles if logged in
+            public_data=[]
         )
 
 
 @app.route("/search", methods=["POST"])
 async def do_search():
     """
-    - If user is NOT logged in => ignore/redirect (disabled).
-    - If user is logged in => do normal search flow.
-      1) Store original text in 'normal_text'.
-      2) Sanitize 'text' for TTS generation.
+    Updated search flow:
+      1) If user not logged in => cannot search.
+      2) If user is logged in => always pull fresh results from Google first 
+         (google_cse_search(query, limit=4)).
+      3) For each search result returned from Google, check if we already have 
+         that title in 'search_article'.
+         a) If NOT found => generate TTS with the user's style and store.
+         b) If found => compare stored TTS style with the user's style.
+            If they differ => re-generate TTS with the new style and store.
+            If they match => reuse existing TTS (no new generation).
+      4) Store ephemeral data (the final results) in session["search_results"],
+         so the user sees them only during this search session.
+      5) Also store each search in journals.db with search_article table 
+         (updating the TTS if needed).
     """
     user_id = session.get("user_id")
     if not user_id:
@@ -951,42 +876,109 @@ async def do_search():
 
     form_data = await request.form
     query = form_data.get("query", "").strip()
-    tts_type = form_data.get("tts_type", "").strip() or ""
 
+    # If the query is empty, just redirect to index
     if not query:
         return redirect(url_for("index"))
 
+    # Grab the user from the DB to get their TTS style
+    db_sess = SessionLocal()
+    db_user = db_sess.execute(
+        select(User).where(User.id == user_id)
+    ).scalar_one_or_none()
+    db_sess.close()
+    tts_type = db_user.style or ""
+
     # Clear old ephemeral data
     session["search_results"] = []
-
-    results = google_cse_search(query, limit=4)
     ephemeral_articles = []
 
+    # We always fetch fresh data from Google first (as per instructions):
+    results = google_cse_search(query, limit=4)
+
+    # Open a session to the journals DB
+    j_sess = SessionLocalJournals()
+
+    # For each result from Google, check if we have an existing record by title
     for r in results:
-        # 1) Store original text
-        r["normal_text"] = r["text"]
+        # 1) Sanitize text
+        original_snippet = r["text"]
+        sanitized_snippet = sanitize(original_snippet)
 
-        # 2) Sanitize text before TTS
-        r["text"] = sanitize(r["text"])
-        r["tts_type"] = tts_type
+        # 2) Check if we have an existing entry in search_article with the same title
+        existing_sa = j_sess.execute(
+            select(SearchArticle).where(SearchArticle.title == r["title"])
+        ).scalars().first()
 
-        # 3) Generate ephemeral TTS (which will use the sanitized text)
-        generate_tts_for_ephemeral(r)
-
-        # 4) Download image to local
+        # 3) Download image
         image_url = r.get("image_url") or ""
-        if image_url:
-            filename = f"{abs(hash(image_url))}.jpg"
-            local_path = download_image(image_url, filename)
-            r["image_url"] = "/" + local_path
+        filename = f"{abs(hash(image_url))}.jpg"
+        local_path = download_image(image_url, filename) if image_url else "static/images/default.jpg"
+        final_image_path = "/" + local_path
+
+        tts_text_for_this_article = ""
+        # If article does not exist, create and generate TTS
+        if not existing_sa:
+            ephemeral_dict = {
+                "text": sanitized_snippet,
+                "tts_type": tts_type
+            }
+            generate_tts_for_ephemeral(ephemeral_dict)
+            tts_text_for_this_article = ephemeral_dict["tts_text"]
+
+            new_search = SearchArticle(
+                query=query,
+                user_id=user_id,  # who first searched it
+                news_url=r["news_url"],
+                image_path=final_image_path,
+                title=r["title"],
+                text=sanitized_snippet,
+                source_name=r["source_name"],
+                date=r["date"],
+                tts_text=tts_text_for_this_article,
+                tts_type=tts_type
+            )
+            j_sess.add(new_search)
+            j_sess.commit()
+
         else:
-            r["image_url"] = "/static/images/default.jpg"
+            # If we already have that article, check TTS style
+            if existing_sa.tts_type != tts_type:
+                # Regenerate with the new style
+                ephemeral_dict = {
+                    "text": existing_sa.text,
+                    "tts_type": tts_type
+                }
+                generate_tts_for_ephemeral(ephemeral_dict)
+                existing_sa.tts_text = ephemeral_dict["tts_text"]
+                existing_sa.tts_type = tts_type
+                j_sess.commit()
 
-        ephemeral_articles.append(r)
+            # We use the existing or newly generated TTS
+            tts_text_for_this_article = existing_sa.tts_text
+            # Also update the image if needed (optional, in case images got updated)
+            existing_sa.image_path = final_image_path
+            j_sess.commit()
 
-    # Finally, store the entire ephemeral set in the session
+        # Prepare ephemeral data for the session
+        ephemeral_articles.append({
+            "news_url":    r["news_url"],
+            "image_url":   final_image_path,
+            "title":       r["title"],
+            "text":        sanitized_snippet,
+            "source_name": r["source_name"],
+            "date":        r["date"],
+            "tts_text":    tts_text_for_this_article,
+            "tts_type":    tts_type,
+            "normal_text": original_snippet
+        })
+
+    j_sess.close()
+
+    # Store ephemeral data in session
     session["search_results"] = ephemeral_articles
 
+    # Redirect or render a template to show the user the results
     return redirect(url_for("index"))
 
 @app.route("/reels")
