@@ -68,7 +68,7 @@ class User(Base):
     style     = Column(String, nullable=True)  # e.g. "Journalistic style"
 
 # Connect articles.db
-db_file = "sqlite:///articles.db"
+db_file = "sqlite:///users.db"
 engine = create_engine(db_file, echo=False)
 SessionLocal = sessionmaker(bind=engine)
 Base.metadata.create_all(engine)

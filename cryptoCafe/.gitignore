@@ -1,4 +1,4 @@
 .env
 *pycache
-articles.db
+users.db
 journals.db
