@@ -19,8 +19,7 @@
     /* Use a sleek, professional font */
     body {
       font-family: 'Poppins', sans-serif;
-      background: linear-gradient(135deg, #06102B, #0D213E);
-      color: #ECECEC;
+      background: #ffffff;
     }
 
     /* Navbar - create a gradient effect and add a subtle shadow */
@@ -52,7 +51,7 @@
     /* Headings inside container */
     h1, h2 {
       font-weight: 600;
-      color: #FFFFFF;
+      color: #000000;
     }
 
     /* Hero text for non-logged-in users */
@@ -71,8 +70,6 @@
     /* Search form inputs */
     .form-control, .form-select {
       background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: #fff;
     }
     .form-control:focus, .form-select:focus {
       border-color: #00CBFF;
@@ -82,7 +79,7 @@
 
     /* Search button styling */
     .btn-primary {
-      background-color: #0069D9;
+      background-color: linear-gradient(135deg, #0077F5, #00CBFF);
       border: none;
       transition: background-color 0.3s ease;
     }
@@ -111,7 +108,7 @@
     }
     .card-text {
       font-size: 0.95rem;
-      color: #d1d1d1;
+      color: #000000;
     }
     .card-footer {
       background-color: #152235;
@@ -173,9 +170,9 @@
                     <input
                       type="checkbox"
                       name="topics"
-                      value="BTC"
+                      value="Bitcoin"
                       id="topic-btc"
-                      {% if 'BTC' in current_topics %}checked{% endif %}
+                      {% if 'Bitcoin' in current_topics %}checked{% endif %}
                     >
                     <label for="topic-btc">Bitcoin (BTC)</label>
                   </div>
@@ -187,9 +184,9 @@
                     <input
                       type="checkbox"
                       name="topics"
-                      value="ETH"
+                      value="Ethereum"
                       id="topic-eth"
-                      {% if 'ETH' in current_topics %}checked{% endif %}
+                      {% if 'Ethereum' in current_topics %}checked{% endif %}
                     >
                     <label for="topic-eth">Ethereum (ETH)</label>
                   </div>
@@ -223,19 +220,54 @@
                   </div>
                 </div>
               </div>
+              <div class="col-md-3">
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <input
+                      type="checkbox"
+                      name="topics"
+                      value="Trading"
+                      id="topic-trd"
+                      {% if 'Trading' in current_topics %}checked{% endif %}
+                    >
+                    <label for="topic-trd">Trading</label>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <input
+                      type="checkbox"
+                      name="topics"
+                      value="Market Insights"
+                      id="topic-mkt"
+                      {% if 'Market Insights' in current_topics %}checked{% endif %}
+                    >
+                    <label for="topic-mkt">Market Insights</label>
+                  </div>
+                </div>
+              </div>
               <!-- Add any others you want -->
             </div>
           </div>
           
           <div class="col-12">
             <h4>Narration Style:</h4>
-            <textarea
-              name="style"
-              class="form-control"
-              rows="3"
-              placeholder="Enter your preferred narration style here"
-            >{{ user.style }}</textarea>
-          </div>
+            <select name="style" class="form-control">
+              <option value="">-- Select a Narration Style --</option>
+              <option value="Persuasive" 
+                {% if user.style == "Persuasive" %}selected{% endif %}>Persuasive Style</option>
+              <option value="Academic writing" 
+                {% if user.style == "Academic writing" %}selected{% endif %}>Academic Style</option>
+              <option value="Business style" 
+                {% if user.style == "Business style" %}selected{% endif %}>Business style</option>
+              <option value="Journalistic style" 
+                {% if user.style == "Journalistic style" %}selected{% endif %}>Journalistic style</option>
+              <option value="Argumentative style" 
+                {% if user.style == "Argumentative style" %}selected{% endif %}>Argumentative style</option>
+            </select>
+          </div>          
           
           <div class="col-12">
             <button class="btn btn-primary">Save Settings</button>
