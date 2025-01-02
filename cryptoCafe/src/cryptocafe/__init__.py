@@ -451,32 +451,63 @@ def download_image(image_url: str, filename: str) -> str:
     return local_path
 
 
+PUNCT_ENTITY_REGEX = re.compile(r'&#x(2E|002E|2C|002C);', re.IGNORECASE)
 UNWANTED_ENTITIES_REGEX = re.compile(r'&#x[0-9A-Fa-f]+;')
 NON_ASCII_REGEX = re.compile(r'[^\x00-\x7F]+')
-NON_WORDS_REGEX = re.compile(r'[^a-zA-Z0-9\s]+')
+# Keep letters, digits, whitespace, and specifically allow '.' and ','
+NON_WORDS_REGEX = re.compile(r'[^a-zA-Z0-9\s\.,]+')
 MULTI_SPACE_REGEX = re.compile(r'\s+')
 
 def sanitize(entry: str) -> str:
     """
     1) Decode HTML entities
-    2) Remove leftover hex entities
-    3) Remove all non-ASCII
-    4) Keep only letters, digits, and whitespace
-    5) Collapse multiple spaces, strip
-    6) HTML-escape
-    7) Escape backslashes and double quotes
+    2) Replace &#x2E; (fullstop) and &#x2C; (comma) with '.' and ',' respectively
+    3) Remove leftover hex entities
+    4) Remove all non-ASCII
+    5) Keep only letters, digits, whitespace, '.', and ','
+    6) Collapse multiple spaces, strip
+    7) HTML-escape
+    8) Escape backslashes and double quotes
+    9) If string starts and ends with quotes, remove them
     """
+
+    # Step 1: Decode HTML entities
     decoded_text = html.unescape(entry)
-    cleaned_text = UNWANTED_ENTITIES_REGEX.sub('', decoded_text)
+
+    # Step 2: Replace known punctuation entities ('.' or ',')
+    def punct_replacer(match):
+        code = match.group(1).lower()
+        if code in ['2e', '002e']:
+            return '.'
+        elif code in ['2c', '002c']:
+            return ','
+        # Should not happen if we only match above codes, but just in case:
+        return ''
+    replaced_text = PUNCT_ENTITY_REGEX.sub(punct_replacer, decoded_text)
+
+    # Step 3: Remove leftover hex entities
+    cleaned_text = UNWANTED_ENTITIES_REGEX.sub('', replaced_text)
+
+    # Step 4: Remove all non-ASCII
     cleaned_text = NON_ASCII_REGEX.sub('', cleaned_text)
+
+    # Step 5: Keep only letters, digits, whitespace, '.' and ','
     cleaned_text = NON_WORDS_REGEX.sub(' ', cleaned_text)
+
+    # Step 6: Collapse multiple spaces and strip
     cleaned_text = MULTI_SPACE_REGEX.sub(' ', cleaned_text).strip()
+
+    # Step 7: HTML-escape the cleaned text
     escaped_text = html.escape(cleaned_text)
+
+    # Step 8: Escape backslashes and double quotes
     escaped_text = escaped_text.replace('\\', '\\\\').replace('"', '\\"')
+
+    # Step 9: If the string starts and ends with quotes, remove them
     if escaped_text.startswith('"') and escaped_text.endswith('"'):
         escaped_text = escaped_text[1:-1]
-    return escaped_text
 
+    return escaped_text
 def generate_tts_text(article_text: str, style: str) -> str:
     """
     Uses ChatGPT to rewrite `article_text` in the specified style.
