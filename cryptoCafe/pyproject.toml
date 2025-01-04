@@ -15,6 +15,9 @@ openai = "^1.58.1"
 sqlalchemy = "^2.0.36"
 python-dotenv = "^1.0.1"
 authlib = {extras = ["quart"], version = "^1.4.0"}
+deepgram-sdk = "^3.7.7"
+google-cloud-texttospeech = "^2.23.0"
+google-auth = "^2.37.0"
 
 [tool.poetry.scripts]
 start = "cryptocafe:run"

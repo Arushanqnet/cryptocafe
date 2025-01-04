@@ -11,6 +11,11 @@ from quart import (
 )
 from urllib.parse import urlencode
 
+# GOOGLE TTS
+# Make sure you install the library:  pip install google-cloud-texttospeech
+from google.cloud import texttospeech
+from google.oauth2 import service_account
+
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, select
 )
@@ -36,13 +41,14 @@ app.config['DEBUG'] = True
 
 app.static_folder = 'static'
 os.makedirs('static/images', exist_ok=True)
+os.makedirs('static/audio', exist_ok=True)
 
 # Google CSE
 GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
-GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
+GOOGLE_CSE_CX      = os.getenv("GOOGLE_CSE_CX", "")
 
 # ---------------------------------------------------------------------
-# Database #1: articles.db (for user accounts only now)
+# Database #1: users.db (for user accounts)
 # ---------------------------------------------------------------------
 Base = declarative_base()
 
@@ -67,7 +73,7 @@ class User(Base):
     topics    = Column(String, nullable=True)  # e.g. "BTC,ETH"
     style     = Column(String, nullable=True)  # e.g. "Journalistic style"
 
-# Connect articles.db
+
 db_file = "sqlite:///users.db"
 engine = create_engine(db_file, echo=False)
 SessionLocal = sessionmaker(bind=engine)
@@ -82,12 +88,7 @@ JournalsBase = declarative_base()
 class JournalArticle(JournalsBase):
     """
     Stores trending news fetched periodically.
-    Now with five TTS columns, one for each style:
-      - tts_text_persuasive
-      - tts_text_academic
-      - tts_text_business
-      - tts_text_journalistic
-      - tts_text_argumentative
+    We store TTS text for each style plus the resulting mp3 filename for each style.
     """
     __tablename__ = "journal_articles"
 
@@ -103,18 +104,25 @@ class JournalArticle(JournalsBase):
     tickers     = Column(String, nullable=True)
     created_at  = Column(Integer, default=lambda: int(time.time()))
 
-    # New columns for each TTS style
+    # TTS (script) columns
     tts_text_persuasive   = Column(Text, nullable=True)
     tts_text_academic     = Column(Text, nullable=True)
     tts_text_business     = Column(Text, nullable=True)
     tts_text_journalistic = Column(Text, nullable=True)
     tts_text_argumentative= Column(Text, nullable=True)
 
+    # TTS (mp3) filenames
+    mp3_persuasive        = Column(String, nullable=True)
+    mp3_academic          = Column(String, nullable=True)
+    mp3_business          = Column(String, nullable=True)
+    mp3_journalistic      = Column(String, nullable=True)
+    mp3_argumentative     = Column(String, nullable=True)
+
 
 class SearchArticle(JournalsBase):
     """
     Stores search results so we can reuse or quickly re-generate TTS
-    (unchanged from original).
+    (and MP3) for ephemeral search articles.
     """
     __tablename__ = "search_article"
 
@@ -122,13 +130,15 @@ class SearchArticle(JournalsBase):
     query       = Column(String, nullable=False)
     user_id     = Column(Integer, nullable=True)         # The user who first searched
     news_url    = Column(String, nullable=False)         # Link to the article
-    image_path  = Column(String, nullable=True)          
+    image_path  = Column(String, nullable=True)
     title       = Column(String, nullable=True)
-    text        = Column(Text, nullable=True)            
+    text        = Column(Text, nullable=True)
     source_name = Column(String, nullable=True)
     date        = Column(String, nullable=True)
     tts_text    = Column(Text, nullable=True)
     tts_type    = Column(String, nullable=True)
+    # New column: mp3 filename for ephemeral TTS
+    tts_mp3     = Column(String, nullable=True)
     created_at  = Column(Integer, default=lambda: int(time.time()))
 
 
@@ -156,7 +166,7 @@ GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
 # ---------------------------------------------------------------------
-# BACKGROUND TASK
+# BACKGROUND TASK (fetch new news every 1 hour)
 # ---------------------------------------------------------------------
 background_task_running = False
 
@@ -164,7 +174,7 @@ async def fetch_trending_news_loop():
     """
     Infinite loop that runs every 60 minutes (3600s).
     Fetches trending news for each topic in TRENDING_TOPICS,
-    upserts them into journals.db, generating all TTS variants.
+    upserts them into journals.db, generating all TTS variants & mp3.
     Then sleeps 1 hour.
     """
     while True:
@@ -177,13 +187,12 @@ async def fetch_trending_news_loop():
 async def fetch_and_update_journals_db():
     """
     For each topic in TRENDING_TOPICS, run google search and upsert into JournalArticle.
-    We'll generate all TTS variants for each new or updated article.
+    We'll generate all TTS variants for each new or updated article + their MP3.
     """
     j_sess = SessionLocalJournals()
     for topic in TRENDING_TOPICS:
         results = google_cse_search(topic, limit=3)
         for r in results:
-            # Upsert: store all TTS styles
             upsert_journal_article(j_sess, r, topics=topic)
     j_sess.commit()
     j_sess.close()
@@ -258,14 +267,17 @@ async def auth_callback():
             db_sess.commit()
             session["user_id"] = existing_user.id
 
+            # If user missing topics or style => go to onboarding
             if not existing_user.topics or not existing_user.style:
                 db_sess.close()
+                # Start background news fetch if not running
                 if not background_task_running:
                     background_task_running = True
                     asyncio.create_task(fetch_trending_news_loop())
                 return redirect(url_for("onboarding"))
             else:
                 db_sess.close()
+                # Start background news fetch if not running
                 if not background_task_running:
                     background_task_running = True
                     asyncio.create_task(fetch_trending_news_loop())
@@ -284,6 +296,7 @@ async def auth_callback():
             session["user_id"] = new_user.id
             db_sess.close()
 
+            # Start background news fetch if not running
             if not background_task_running:
                 background_task_running = True
                 asyncio.create_task(fetch_trending_news_loop())
@@ -454,7 +467,6 @@ def download_image(image_url: str, filename: str) -> str:
 PUNCT_ENTITY_REGEX = re.compile(r'&#x(2E|002E|2C|002C);', re.IGNORECASE)
 UNWANTED_ENTITIES_REGEX = re.compile(r'&#x[0-9A-Fa-f]+;')
 NON_ASCII_REGEX = re.compile(r'[^\x00-\x7F]+')
-# Keep letters, digits, whitespace, and specifically allow '.' and ','
 NON_WORDS_REGEX = re.compile(r'[^a-zA-Z0-9\s\.,]+')
 MULTI_SPACE_REGEX = re.compile(r'\s+')
 
@@ -468,49 +480,36 @@ def sanitize(entry: str) -> str:
     6) Collapse multiple spaces, strip
     7) HTML-escape
     8) Escape backslashes and double quotes
-    9) If string starts and ends with quotes, remove them
+    9) If string starts/ends with quotes, remove them
     """
-
-    # Step 1: Decode HTML entities
     decoded_text = html.unescape(entry)
 
-    # Step 2: Replace known punctuation entities ('.' or ',')
     def punct_replacer(match):
         code = match.group(1).lower()
         if code in ['2e', '002e']:
             return '.'
         elif code in ['2c', '002c']:
             return ','
-        # Should not happen if we only match above codes, but just in case:
         return ''
+
     replaced_text = PUNCT_ENTITY_REGEX.sub(punct_replacer, decoded_text)
-
-    # Step 3: Remove leftover hex entities
     cleaned_text = UNWANTED_ENTITIES_REGEX.sub('', replaced_text)
-
-    # Step 4: Remove all non-ASCII
     cleaned_text = NON_ASCII_REGEX.sub('', cleaned_text)
-
-    # Step 5: Keep only letters, digits, whitespace, '.' and ','
     cleaned_text = NON_WORDS_REGEX.sub(' ', cleaned_text)
-
-    # Step 6: Collapse multiple spaces and strip
     cleaned_text = MULTI_SPACE_REGEX.sub(' ', cleaned_text).strip()
 
-    # Step 7: HTML-escape the cleaned text
     escaped_text = html.escape(cleaned_text)
-
-    # Step 8: Escape backslashes and double quotes
     escaped_text = escaped_text.replace('\\', '\\\\').replace('"', '\\"')
-
-    # Step 9: If the string starts and ends with quotes, remove them
     if escaped_text.startswith('"') and escaped_text.endswith('"'):
         escaped_text = escaped_text[1:-1]
 
     return escaped_text
+
+
 def generate_tts_text(article_text: str, style: str) -> str:
     """
-    Uses ChatGPT to rewrite `article_text` in the specified style.
+    Uses ChatGPT to rewrite article_text in the specified style
+    (the textual transcript).
     """
     if not article_text.strip():
         return "No content available."
@@ -527,8 +526,14 @@ def generate_tts_text(article_text: str, style: str) -> str:
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a News narrator outputting news voiceover scripts as plain text."},
-                {"role": "user", "content": prompt},
+                {
+                    "role": "system",
+                    "content": "You are a News narrator outputting news voiceover scripts as plain text."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                },
             ],
         )
         result = response.choices[0].message.content.strip()
@@ -538,10 +543,47 @@ def generate_tts_text(article_text: str, style: str) -> str:
         return f"Unable to rewrite in {style}."
 
 
+def generate_google_tts_mp3(text_script: str, base_filename: str) -> str:
+    """
+    Uses Google Text-to-Speech to generate an MP3 file from the given text_script.
+    Returns the filename of the generated mp3 (within static/audio).
+    """
+    if not text_script.strip():
+        return ""
+    creds_path = os.path.join(os.getcwd(), "TTS_Crds.json")
+    credentials = service_account.Credentials.from_service_account_file(creds_path)
+    client_tts = texttospeech.TextToSpeechClient(credentials=credentials)
+    # Create a TTS client (ensure you have your creds set up, e.g. env var GOOGLE_APPLICATION_CREDENTIALS)
+
+    synthesis_input = texttospeech.SynthesisInput(text=text_script)
+    voice = texttospeech.VoiceSelectionParams(
+        language_code="en-US",
+        ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
+    )
+    audio_config = texttospeech.AudioConfig(
+        audio_encoding=texttospeech.AudioEncoding.MP3
+    )
+
+    try:
+        response = client_tts.synthesize_speech(
+            input=synthesis_input, voice=voice, audio_config=audio_config
+        )
+        final_filename = base_filename + ".mp3"
+        final_path = os.path.join("static", "audio", final_filename)
+        with open(final_path, "wb") as out:
+            out.write(response.audio_content)
+        return final_filename
+    except Exception as e:
+        print("Google TTS generation error:", e)
+        return ""
+
+
 def upsert_journal_article(session, data: dict, topics: str):
     """
     Insert or update a JournalArticle record in DB (journals.db).
-    We now generate all TTS styles for the article.
+    Generates:
+      - textual TTS script (via ChatGPT)
+      - mp3 file (via Google TTS) for each style
     """
     news_url = data.get("news_url", "").strip()
     if not news_url:
@@ -567,12 +609,28 @@ def upsert_journal_article(session, data: dict, topics: str):
     article.sentiment   = data.get("sentiment", "")
     article.tickers     = data.get("tickers", "")
 
-    # Generate each TTS style
-    article.tts_text_persuasive   = generate_tts_text(sanitized_text, "Persuasive style")
-    article.tts_text_academic     = generate_tts_text(sanitized_text, "Academic style")
-    article.tts_text_business     = generate_tts_text(sanitized_text, "Business style")
-    article.tts_text_journalistic = generate_tts_text(sanitized_text, "Journalistic style")
-    article.tts_text_argumentative= generate_tts_text(sanitized_text, "Argumentative style")
+    # Generate each TTS style text
+    tts_styles = {
+        "persuasive":   "Persuasive style",
+        "academic":     "Academic style",
+        "business":     "Business style",
+        "journalistic": "Journalistic style",
+        "argumentative":"Argumentative style"
+    }
+
+    # For each style, generate text + mp3, store in DB
+    for short_key, style_str in tts_styles.items():
+        # textual script
+        tts_text_val = generate_tts_text(sanitized_text, style_str)
+        setattr(article, f"tts_text_{short_key}", tts_text_val)
+
+        # mp3 generation
+        # We'll generate a unique base filename: hash the url + style name
+        # example: hash("url+persuasive") => some integer
+        mp3_hash = abs(hash(news_url + short_key))
+        base_filename = f"{mp3_hash}_{short_key}"
+        mp3_filename = generate_google_tts_mp3(tts_text_val, base_filename)
+        setattr(article, f"mp3_{short_key}", mp3_filename)
 
     image_url = data.get("image_url", "https://via.placeholder.com/360x640.png?text=No+Image")
     if image_url:
@@ -585,23 +643,21 @@ def upsert_journal_article(session, data: dict, topics: str):
     return article
 
 
-# ---------------------------------------------------------------------
-# SEARCH TTS HELPER (UNTOUCHED)
-# ---------------------------------------------------------------------
 def generate_tts_for_ephemeral(article_dict: dict):
     """
-    Generates TTS text for ephemeral search results (kept).
-    Uses the user's style if needed. (unchanged)
+    Generates TTS text for ephemeral search results (kept) and also generate mp3.
     """
-    if "tts_text" in article_dict and article_dict["tts_text"]:
-        return article_dict["tts_text"]
+    if not article_dict.get("text"):
+        article_dict["tts_text"] = "No content to speak."
+        return
 
-    raw_text = (article_dict.get("text") or "").strip()
+    style = article_dict.get("tts_type") or "Journalistic style"
+    raw_text = article_dict["text"].strip()
     if not raw_text:
         article_dict["tts_text"] = "No content to speak."
-        return article_dict["tts_text"]
+        return
 
-    style = article_dict.get("tts_type") or "default style"
+    # Use ChatGPT to create textual script
     prompt = f"""
     Please create a YouTube short reels script (~30-45 seconds) voiceover summarizing
     the following article in a {style}.
@@ -616,17 +672,28 @@ def generate_tts_for_ephemeral(article_dict: dict):
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a News narrator outputting news voiceover scripts as plain text"},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are a News narrator outputting news voiceover scripts as plain text"
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                },
             ],
         )
         script_output = response.choices[0].message.content.strip()
         article_dict["tts_text"] = sanitize(script_output)
-        return article_dict["tts_text"]
     except Exception as e:
         print("OpenAI TTS error:", e)
         article_dict["tts_text"] = "Error generating TTS."
-        return article_dict["tts_text"]
+
+    # Also generate the mp3 with Google TTS
+    # We'll build a base filename from the article's URL or title
+    unique_hash = abs(hash(article_dict.get("news_url", "") + style))
+    base_filename = f"search_{unique_hash}"
+    mp3_filename = generate_google_tts_mp3(article_dict["tts_text"], base_filename)
+    article_dict["tts_mp3"] = mp3_filename
 
 
 # ---------------------------------------------------------------------
@@ -637,9 +704,9 @@ async def index():
     """
     Landing page:
       - Non-logged-in => show ALL JournalArticle (no topic filter),
-                         display .tts_text_journalistic for each article
+                         display .tts_text_journalistic + mp3_journalistic
       - Logged-in => filter JournalArticle by user’s topics,
-                     display the user’s selected TTS style column
+                     display the user’s selected TTS style column + mp3
     """
     user_id = session.get("user_id")
     j_sess = SessionLocalJournals()
@@ -649,7 +716,6 @@ async def index():
         public_articles = j_sess.execute(
             select(JournalArticle).order_by(JournalArticle.id.desc())
         ).scalars().all()
-
         j_sess.close()
 
         public_data = []
@@ -664,9 +730,9 @@ async def index():
                 "topics":      (a.topics or "").split(","),
                 "sentiment":   a.sentiment,
                 "tickers":     (a.tickers or "").split(","),
-                # Show journalistic TTS only
                 "tts_text":    a.tts_text_journalistic,
                 "tts_type":    "Journalistic style",
+                "mp3_name":    a.mp3_journalistic
             })
 
         return await render_template("index.html",
@@ -697,7 +763,6 @@ async def index():
             select(JournalArticle).order_by(JournalArticle.id.desc())
         ).scalars().all()
 
-        # Build filtered list
         filtered_articles = []
         for a in all_j_articles:
             article_topics_set = set((a.topics or "").split(","))
@@ -708,28 +773,30 @@ async def index():
         db_sess.close()
         j_sess.close()
 
-        # We'll build "db_data" from the filtered JournalArticle
         db_data = []
         user_style = db_user.style.lower()
-        # Map user style (string) to the actual column in the article
-        # We'll handle some fuzzy matching for style to keep it simple
+
         for a in filtered_articles:
             if "persuasive" in user_style:
-                used_tts = a.tts_text_persuasive
-                style_label = "Persuasive style"
+                used_tts   = a.tts_text_persuasive
+                used_mp3   = a.mp3_persuasive
+                style_label= "Persuasive style"
             elif "academic" in user_style:
-                used_tts = a.tts_text_academic
-                style_label = "Academic style"
+                used_tts   = a.tts_text_academic
+                used_mp3   = a.mp3_academic
+                style_label= "Academic style"
             elif "business" in user_style:
-                used_tts = a.tts_text_business
-                style_label = "Business style"
+                used_tts   = a.tts_text_business
+                used_mp3   = a.mp3_business
+                style_label= "Business style"
             elif "argumentative" in user_style:
-                used_tts = a.tts_text_argumentative
-                style_label = "Argumentative style"
+                used_tts   = a.tts_text_argumentative
+                used_mp3   = a.mp3_argumentative
+                style_label= "Argumentative style"
             else:
-                # default => Journalistic
-                used_tts = a.tts_text_journalistic
-                style_label = "Journalistic style"
+                used_tts   = a.tts_text_journalistic
+                used_mp3   = a.mp3_journalistic
+                style_label= "Journalistic style"
 
             db_data.append({
                 "news_url":    a.news_url,
@@ -743,6 +810,7 @@ async def index():
                 "tickers":     (a.tickers or "").split(","),
                 "tts_text":    used_tts,
                 "tts_type":    style_label,
+                "mp3_name":    used_mp3
             })
 
         return await render_template(
@@ -759,8 +827,7 @@ async def do_search():
     """
     1) If user not logged in => cannot search.
     2) If user is logged in => always do a fresh Google search,
-       upsert into search_article (like before), generate TTS with user style if needed,
-       store ephemeral results in session.
+       upsert into search_article, generate TTS with user style, store ephemeral results in session.
     """
     user_id = session.get("user_id")
     if not user_id:
@@ -771,24 +838,20 @@ async def do_search():
     if not query:
         return redirect(url_for("index"))
 
-    # Grab the user from the DB to get their TTS style
     db_sess = SessionLocal()
     db_user = db_sess.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
     db_sess.close()
     tts_type = db_user.style or "Journalistic style"
 
-    # Clear old ephemeral data
     session["search_results"] = []
     ephemeral_articles = []
 
-    # Always fetch fresh data from Google
     results = google_cse_search(query, limit=4)
 
     j_sess = SessionLocalJournals()
     for r in results:
-        original_snippet = r["text"]
-        sanitized_snippet = sanitize(original_snippet)
-
+        original_snippet   = r["text"]
+        sanitized_snippet  = sanitize(original_snippet)
         existing_sa = j_sess.execute(
             select(SearchArticle).where(SearchArticle.title == r["title"])
         ).scalars().first()
@@ -799,13 +862,17 @@ async def do_search():
         final_image_path = "/" + local_path
 
         tts_text_for_this_article = ""
+        tts_mp3_for_this_article  = ""
+
         if not existing_sa:
             ephemeral_dict = {
                 "text": sanitized_snippet,
-                "tts_type": tts_type
+                "tts_type": tts_type,
+                "news_url": r["news_url"]
             }
             generate_tts_for_ephemeral(ephemeral_dict)
             tts_text_for_this_article = ephemeral_dict["tts_text"]
+            tts_mp3_for_this_article  = ephemeral_dict["tts_mp3"]
 
             new_search = SearchArticle(
                 query=query,
@@ -817,24 +884,31 @@ async def do_search():
                 source_name=r["source_name"],
                 date=r["date"],
                 tts_text=tts_text_for_this_article,
-                tts_type=tts_type
+                tts_type=tts_type,
+                tts_mp3=tts_mp3_for_this_article
             )
             j_sess.add(new_search)
             j_sess.commit()
         else:
+            # If the style is different, re-generate TTS & mp3
             if existing_sa.tts_type != tts_type:
                 ephemeral_dict = {
                     "text": existing_sa.text,
-                    "tts_type": tts_type
+                    "tts_type": tts_type,
+                    "news_url": existing_sa.news_url
                 }
                 generate_tts_for_ephemeral(ephemeral_dict)
                 existing_sa.tts_text = ephemeral_dict["tts_text"]
+                existing_sa.tts_mp3  = ephemeral_dict["tts_mp3"]
                 existing_sa.tts_type = tts_type
                 j_sess.commit()
 
-            tts_text_for_this_article = existing_sa.tts_text
+            # Update local path if changed
             existing_sa.image_path = final_image_path
             j_sess.commit()
+
+            tts_text_for_this_article = existing_sa.tts_text
+            tts_mp3_for_this_article  = existing_sa.tts_mp3
 
         ephemeral_articles.append({
             "news_url":    r["news_url"],
@@ -845,6 +919,7 @@ async def do_search():
             "date":        r["date"],
             "tts_text":    tts_text_for_this_article,
             "tts_type":    tts_type,
+            "tts_mp3":     tts_mp3_for_this_article,
             "normal_text": original_snippet
         })
 
@@ -858,7 +933,7 @@ async def reels():
     """
     Shows a reels-style page:
       - Non-logged-in => show all journal articles (journalistic TTS).
-      - Logged-in => filter by user topics, use user’s style TTS, plus ephemeral results.
+      - Logged-in => ephemeral + filtered by user topics, use user’s style TTS
     """
     user_id = session.get("user_id")
     article_index = request.args.get("index", 0, type=int)
@@ -885,11 +960,11 @@ async def reels():
                 "tickers":     (a.tickers or "").split(","),
                 "tts_text":    a.tts_text_journalistic,
                 "tts_type":    "Journalistic style",
+                "mp3_name":    a.mp3_journalistic
             })
         return await render_template("reels.html", data=public_data, start_index=article_index)
 
     else:
-        # Logged in => ephemeral_data + filter by user topics
         db_sess = SessionLocal()
         db_user = db_sess.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
 
@@ -912,25 +987,29 @@ async def reels():
             if user_topics_set & article_topics_set:
                 filtered_articles.append(a)
 
-        # Determine which TTS column to use
         user_style = db_user.style.lower()
         db_data = []
         for a in filtered_articles:
             if "persuasive" in user_style:
-                used_tts = a.tts_text_persuasive
-                style_label = "Persuasive style"
+                used_tts   = a.tts_text_persuasive
+                used_mp3   = a.mp3_persuasive
+                style_label= "Persuasive style"
             elif "academic" in user_style:
-                used_tts = a.tts_text_academic
-                style_label = "Academic style"
+                used_tts   = a.tts_text_academic
+                used_mp3   = a.mp3_academic
+                style_label= "Academic style"
             elif "business" in user_style:
-                used_tts = a.tts_text_business
-                style_label = "Business style"
+                used_tts   = a.tts_text_business
+                used_mp3   = a.mp3_business
+                style_label= "Business style"
             elif "argumentative" in user_style:
-                used_tts = a.tts_text_argumentative
-                style_label = "Argumentative style"
+                used_tts   = a.tts_text_argumentative
+                used_mp3   = a.mp3_argumentative
+                style_label= "Argumentative style"
             else:
-                used_tts = a.tts_text_journalistic
-                style_label = "Journalistic style"
+                used_tts   = a.tts_text_journalistic
+                used_mp3   = a.mp3_journalistic
+                style_label= "Journalistic style"
 
             db_data.append({
                 "news_url":    a.news_url,
@@ -944,6 +1023,7 @@ async def reels():
                 "tickers":     (a.tickers or "").split(","),
                 "tts_text":    used_tts,
                 "tts_type":    style_label,
+                "mp3_name":    used_mp3
             })
 
         db_sess.close()
@@ -954,8 +1034,17 @@ async def reels():
 
 @app.route('/static/images/<path:filename>')
 async def serve_image(filename):
+    """
+    Serve images from static/images directory.
+    """
     return await send_from_directory('static/images', filename)
 
+@app.route('/static/audio/<path:filename>')
+async def serve_audio(filename):
+    """
+    Serve mp3 files from static/audio directory.
+    """
+    return await send_from_directory('static/audio', filename)
 
 def run():
     app.run(debug=True)

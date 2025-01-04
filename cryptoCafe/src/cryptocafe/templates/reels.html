@@ -478,6 +478,7 @@
       <div class="source-link">
         <a href="#" id="source-url" target="_blank">View Source</a>
       </div>
+      <!-- If you still want to show TTS text, keep this. Otherwise, remove. -->
       <div class="tts-text" id="tts-text-overlay">No TTS Text</div>
     </div>
   </div>
@@ -504,13 +505,12 @@
     canvas.bgScaleDir = 1;           // 1 = up, -1 = down
     canvas.bgAnimSpeed = 0.0002;     // how fast to “breathe”
 
-    // TTS
-    let synth = window.speechSynthesis;
-    let utterance = null;
-    let currentIndex = START_INDEX >= 0 && START_INDEX < newsItems.length
-                      ? START_INDEX
-                      : 0;
+    // Instead of speechSynthesis, use a single MP3 audio
+    let audio = new Audio();
     let isPaused = false;
+    let currentIndex = (START_INDEX >= 0 && START_INDEX < newsItems.length)
+                       ? START_INDEX
+                       : 0;
 
     // DOM Refs
     const titleOverlay    = document.getElementById('title-overlay');
@@ -531,52 +531,47 @@
     const prevBtn = document.getElementById('prev-btn');
     const nextBtn = document.getElementById('next-btn');
 
-    // --------------- TTS ---------------
-    function speakText(text) {
-      if (utterance && synth.speaking) {
-        synth.cancel();
-      }
-      utterance = new SpeechSynthesisUtterance(text);
-      // Hardcode TTS settings
-      utterance.volume = 1.0;
-      utterance.rate   = 1.0;
-      utterance.pitch  = 1.0;
-
-      // Use any available voice
-      const voices = synth.getVoices();
-      // Try "Microsoft David" or fallback
-      const davidVoice = voices.find(v =>
-        v.name.includes("Microsoft David") &&
-        v.lang.toLowerCase().startsWith("en")
-      );
-      if (davidVoice) {
-        utterance.voice = davidVoice;
-        utterance.lang  = davidVoice.lang;
-      } else {
-        utterance.lang = "en-US";
-      }
-
+    // --------------- AUDIO EVENT HANDLERS ---------------
+    audio.onended = () => {
       isPaused = false;
-      playPauseIcon.classList.remove('fa-play', 'fa-pause');
-      playPauseIcon.classList.add('fa-pause');
-
-      utterance.onend = () => {
-        isPaused = false;
-        playPauseIcon.classList.remove('fa-pause');
-        playPauseIcon.classList.add('fa-play');
-      };
-      utterance.onpause = () => {
+      playPauseIcon.classList.remove('fa-pause');
+      playPauseIcon.classList.add('fa-play');
+    };
+    audio.onpause = () => {
+      // This also fires when audio ends, so check currentTime
+      if (audio.currentTime < audio.duration) {
         isPaused = true;
         playPauseIcon.classList.remove('fa-pause');
         playPauseIcon.classList.add('fa-play');
-      };
-      utterance.onresume = () => {
-        isPaused = false;
-        playPauseIcon.classList.remove('fa-play');
-        playPauseIcon.classList.add('fa-pause');
-      };
+      }
+    };
+    audio.onplay = () => {
+      isPaused = false;
+      playPauseIcon.classList.remove('fa-play', 'fa-pause');
+      playPauseIcon.classList.add('fa-pause');
+    };
 
-      synth.speak(utterance);
+    // --------------- PLAY / PAUSE ---------------
+    function playAudioFromStart() {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.play();
+    }
+
+    function togglePlayPause() {
+      if (audio.paused) {
+        // Start or resume playing
+        if (audio.currentTime === 0 || audio.currentTime >= audio.duration) {
+          // If never played or ended, start from beginning
+          playAudioFromStart();
+        } else {
+          // Resume from paused state
+          audio.play();
+        }
+      } else {
+        // Pause if currently playing
+        audio.pause();
+      }
     }
 
     // --------------- Show One Item ---------------
@@ -601,17 +596,25 @@
         image_url   = "https://via.placeholder.com/360x640.png?text=No+Image",
         tts_text    = "",
         news_url    = "#",
-        username    = "CryptoCafe"
+        username    = "CryptoCafe",
+        mp3_name    = ""
       } = item;
 
       titleOverlay.textContent   = title;
       descOverlay.textContent    = text;
       dateEl.textContent         = date;
       overlayUsername.textContent= username;
-      document.getElementById('source-url').href = news_url;
+      sourceUrl.href             = news_url;
       ttsTextOverlay.textContent = tts_text;
 
-      speakText(tts_text);
+      // Restart audio for each reel
+      audio.pause();
+      audio.currentTime = 0;
+      if (mp3_name) {
+        audio.src = `/static/audio/${mp3_name}`;
+        audio.play();
+      }
+
       await setBackgroundCover(image_url);
     }
 
@@ -704,39 +707,18 @@
 
     // --------------- NAVIGATION (NEXT/PREV) ---------------
     function nextItem() {
-      synth.cancel();
+      // Stop the audio and move to next
+      audio.pause();
+      audio.currentTime = 0;
       currentIndex = (currentIndex + 1) % newsItems.length;
       showNewsItem(currentIndex);
     }
     function prevItem() {
-      synth.cancel();
+      // Stop the audio and move to prev
+      audio.pause();
+      audio.currentTime = 0;
       currentIndex = (currentIndex - 1 + newsItems.length) % newsItems.length;
       showNewsItem(currentIndex);
-    }
-
-    // --------------- PLAY / PAUSE ---------------
-    function togglePlayPause() {
-      // If TTS is currently speaking or paused, toggle
-      if (synth.speaking) {
-        if (isPaused) {
-          // Resume
-          synth.resume();
-          isPaused = false;
-          playPauseIcon.classList.remove('fa-play');
-          playPauseIcon.classList.add('fa-pause');
-        } else {
-          // Pause
-          synth.pause();
-          isPaused = true;
-          playPauseIcon.classList.remove('fa-pause');
-          playPauseIcon.classList.add('fa-play');
-        }
-      } else {
-        // If not speaking at all (either just finished or hasn't started),
-        // speak again from the beginning
-        const item = newsItems[currentIndex];
-        speakText(item.tts_text || '');
-      }
     }
 
     // --------------- LIKE ANIMATION ---------------
@@ -763,21 +745,22 @@
       e.stopPropagation();
       togglePlayPause();
     });
+
     // Like
     likeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       showFloatingHeart(likeBtn);
       console.log("Liked item:", currentIndex);
     });
+
     // Share
     shareBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       console.log("Share clicked for item:", currentIndex);
     });
 
-    // Clicking background => toggle TTS
+    // Clicking background => toggle audio (skip if top-bar arrow is clicked)
     document.getElementById('reels-container').addEventListener('click', (e) => {
-      // Skip only if the top-bar is clicked (back arrow).
       if (e.target.closest('.top-bar')) return;
       togglePlayPause();
     });
@@ -808,6 +791,7 @@
         startY = null;
       }
     });
+
     // Keyboard up/down
     window.addEventListener('keydown', e => {
       if (e.key === 'ArrowUp') {
@@ -816,6 +800,7 @@
         prevItem();
       }
     });
+
     // Scroll wheel
     let scrollTimeout = null;
     window.addEventListener('wheel', (e) => {
@@ -824,18 +809,21 @@
       if (e.deltaY > 0) nextItem(); else prevItem();
     });
 
-    // Stop TTS on "Back to Home" arrow
+    // "Back to Home" arrow => stop audio & navigate
     backHomeBtn.addEventListener('click', () => {
-      synth.cancel();    // <--- stops the TTS immediately
-      window.location.href = '/'; 
+      audio.pause();
+      audio.currentTime = 0;
+      window.location.href = '/';
     });
 
-    // Also stop TTS if user navigates back or closes tab (browser-based)
+    // Stop audio if user navigates back or closes tab (browser-based)
     window.addEventListener('popstate', () => {
-      synth.cancel();
+      audio.pause();
+      audio.currentTime = 0;
     });
     window.addEventListener('beforeunload', () => {
-      synth.cancel();
+      audio.pause();
+      audio.currentTime = 0;
     });
 
     // Show/hide bottom overlay

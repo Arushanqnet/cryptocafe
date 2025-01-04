@@ -2,3 +2,6 @@
 *pycache
 users.db
 journals.db
+images
+audio
+TTS_Crds.json
