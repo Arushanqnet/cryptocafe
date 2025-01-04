@@ -919,7 +919,7 @@ async def do_search():
             "date":        r["date"],
             "tts_text":    tts_text_for_this_article,
             "tts_type":    tts_type,
-            "tts_mp3":     tts_mp3_for_this_article,
+            "mp3_name":     tts_mp3_for_this_article,
             "normal_text": original_snippet
         })
 
