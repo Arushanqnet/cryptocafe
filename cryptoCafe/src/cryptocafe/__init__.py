@@ -168,7 +168,7 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 # ---------------------------------------------------------------------
 # BACKGROUND TASK (fetch new news every 1 hour)
 # ---------------------------------------------------------------------
-background_task_running = False
+background_task_running = True
 
 async def fetch_trending_news_loop():
     """
@@ -545,39 +545,61 @@ def generate_tts_text(article_text: str, style: str) -> str:
 
 def generate_google_tts_mp3(text_script: str, base_filename: str) -> str:
     """
-    Uses Google Text-to-Speech to generate an MP3 file from the given text_script.
+    Uses Google Text-to-Speech to generate an MP3 file from the given text_script,
+    specifically using a Wavenet or newsreader voice model for smoother speech.
     Returns the filename of the generated mp3 (within static/audio).
     """
     if not text_script.strip():
         return ""
-    creds_path = os.path.join(os.getcwd(), "TTS_Crds.json")
-    credentials = service_account.Credentials.from_service_account_file(creds_path)
-    client_tts = texttospeech.TextToSpeechClient(credentials=credentials)
-    # Create a TTS client (ensure you have your creds set up, e.g. env var GOOGLE_APPLICATION_CREDENTIALS)
 
-    synthesis_input = texttospeech.SynthesisInput(text=text_script)
-    voice = texttospeech.VoiceSelectionParams(
-        language_code="en-US",
-        ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
-    )
-    audio_config = texttospeech.AudioConfig(
-        audio_encoding=texttospeech.AudioEncoding.MP3
-    )
+    # Path to your service account credentials JSON
+    creds_path = os.path.join(os.getcwd(), "TTS_Crds.json")
 
     try:
-        response = client_tts.synthesize_speech(
-            input=synthesis_input, voice=voice, audio_config=audio_config
+        # Create credentials object from JSON file
+        credentials = service_account.Credentials.from_service_account_file(creds_path)
+
+        # Initialize a Text-to-Speech client
+        client_tts = texttospeech.TextToSpeechClient(credentials=credentials)
+
+        # Set up the text input
+        synthesis_input = texttospeech.SynthesisInput(text=text_script)
+
+        # Choose a voice that uses Wavenet or a newsreader style
+        # Example (Wavenet): "en-US-Wavenet-C"
+        # Example (News voice): "en-US-News-K"
+        voice = texttospeech.VoiceSelectionParams(
+            language_code="en-US",
+            name="en-US-News-K",  # or "en-US-News-K" for a newsreader style
+            ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
         )
+
+        # Configure the audio output
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3
+        )
+
+        # Perform the text-to-speech request
+        response = client_tts.synthesize_speech(
+            input=synthesis_input,
+            voice=voice,
+            audio_config=audio_config
+        )
+
+        # Construct filename and directory
         final_filename = base_filename + ".mp3"
         final_path = os.path.join("static", "audio", final_filename)
+
+        # Write the received audio to an MP3 file
         with open(final_path, "wb") as out:
             out.write(response.audio_content)
+
         return final_filename
+
     except Exception as e:
         print("Google TTS generation error:", e)
         return ""
-
-
+    
 def upsert_journal_article(session, data: dict, topics: str):
     """
     Insert or update a JournalArticle record in DB (journals.db).
