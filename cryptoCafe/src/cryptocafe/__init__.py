@@ -168,7 +168,7 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 # ---------------------------------------------------------------------
 # BACKGROUND TASK (fetch new news every 1 hour)
 # ---------------------------------------------------------------------
-background_task_running = True
+background_task_running = False
 
 async def fetch_trending_news_loop():
     """
