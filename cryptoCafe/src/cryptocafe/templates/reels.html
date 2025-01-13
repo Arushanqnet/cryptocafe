@@ -457,8 +457,8 @@
     <!-- Right-side icons (like, share, play/pause + up/down for reels) -->
     <div class="right-icons">
       <i class="fas fa-chevron-up icon-btn" id="prev-btn" title="Previous Reel"></i>
-      
-      <!-- Heart icon & like count. They’re hidden by default; shown in JS if 'options' is true -->
+
+      <!-- Heart icon & like count. Hidden by default, shown in JS if 'options' is true -->
       <i class="fas fa-heart icon-btn" id="like-btn" title="Like" style="display: none;"></i>
       <span class="like-count-text" id="like-count" style="display:none;">0</span>
 
@@ -502,16 +502,11 @@
     </div>
   </div>
 
-  <!-- Server passes user's liked article IDs into liked_ids_json -->
+  <!-- The server passes user's liked article IDs into liked_ids_json -->
   <script>
-    // Step 1: Convert the Python list -> *valid* JSON
-    // Step 2: Mark it safe so it doesn't get HTML-escaped
+    // liked_ids_json => e.g. ["6","18"] if user liked articles 6,18
     const userLikedIds = JSON.parse('{{ liked_ids_json|tojson|safe }}');
-    // Now userLikedIds is a real JS array, e.g. ["6","12"]
-  
-    // Debug:
-    console.log("User liked IDs from server:", userLikedIds);
-  
+
     // Convert to a Set
     const userLikedSet = new Set(userLikedIds.map(id => parseInt(id, 10)));
   </script>
@@ -524,14 +519,14 @@
   <script>
     // --------------- SETUP & DATA ---------------
     const START_INDEX = parseInt('{{ start_index }}');
-    // The server passes "data" => array of reels. Each reel has { id, liked_count, ... }
-    const newsItems   = JSON.parse('{{ data|tojson }}');
+    // "data" => array of reels. Each reel has { id, liked_count, ... }
+    const newsItems = JSON.parse('{{ data|tojson }}');
 
-    // Initialize the Fabric.js canvas
+    // Initialize Fabric.js canvas
     const canvas = new fabric.Canvas('reels-canvas', { renderOnAddRemove: false });
     canvas.skipTargetFind = true;
 
-    // “Breathing” background animation references
+    // “Breathing” background references
     canvas.bgScale = 1.0;        
     canvas.bgScaleMin = 1.0;     
     canvas.bgScaleMax = 1.05;    
@@ -544,7 +539,7 @@
                        ? START_INDEX
                        : 0;
 
-    // DOM references
+    // DOM refs
     const titleOverlay    = document.getElementById('title-overlay');
     const descOverlay     = document.getElementById('desc-overlay');
     const dateEl          = document.getElementById('news-date');
@@ -564,7 +559,7 @@
     const prevBtn = document.getElementById('prev-btn');
     const nextBtn = document.getElementById('next-btn');
 
-    // --------------- AUDIO EVENT HANDLERS ---------------
+    // --------------- AUDIO EVENTS ---------------
     audio.onended = () => {
       isPaused = false;
       playPauseIcon.classList.remove('fa-pause');
@@ -607,10 +602,10 @@
       currentIndex = index;
       canvas.clear();
 
-      // Reset the text animations
+      // fade animations
       titleOverlay.style.animation = 'none';
       descOverlay.style.animation  = 'none';
-      void titleOverlay.offsetWidth; // reflow hack
+      void titleOverlay.offsetWidth;
       void descOverlay.offsetWidth;
       titleOverlay.style.animation = 'fadeFromLeft 1s forwards';
       descOverlay.style.animation  = 'fadeFromRight 1s forwards';
@@ -630,7 +625,7 @@
         liked_count = 0
       } = item;
 
-      // Update textual elements
+      // update text
       titleOverlay.textContent    = title;
       descOverlay.textContent     = text;
       dateEl.textContent          = date;
@@ -638,7 +633,7 @@
       sourceUrl.href              = news_url;
       ttsTextOverlay.textContent  = tts_text;
 
-      // Show/hide like button and count depending on 'options'
+      // show/hide like button
       if (options) {
         likeBtn.style.display     = 'inline-block';
         likeCountEl.style.display = 'inline-block';
@@ -647,17 +642,16 @@
         likeCountEl.style.display = 'none';
       }
 
-      // Display current liked count
       likeCountEl.textContent = liked_count;
 
-      // If the user has already liked this article => highlight in red
+      // highlight if already liked
       if (userLikedSet.has(id)) {
-        likeBtn.classList.add('liked');  // .liked => bold red in CSS
+        likeBtn.classList.add('liked');
       } else {
         likeBtn.classList.remove('liked');
       }
 
-      // Start / reset audio for this reel
+      // audio
       audio.pause();
       audio.currentTime = 0;
       if (mp3_name) {
@@ -665,18 +659,17 @@
         audio.play();
       }
 
-      // Apply background cover
       await setBackgroundCover(image_url);
     }
 
-    // --------------- BACKGROUND COVER + “Breathe” ANIMATION ---------------
+    // --------------- BG COVER + “BREATHE” ANIMATION ---------------
     function setBackgroundCover(imageUrl) {
       return new Promise((resolve) => {
         fabric.Image.fromURL(
           imageUrl,
           (img) => {
             if (!img) {
-              // fallback image if the URL fails
+              // fallback
               fabric.Image.fromURL(
                 'https://via.placeholder.com/360x640.png?text=No+Image',
                 (placeholder) => {
@@ -696,10 +689,7 @@
     }
 
     function coverImage(imgObj) {
-      const scaleRatio = Math.max(
-        canvas.width / imgObj.width,
-        canvas.height / imgObj.height
-      );
+      const scaleRatio = Math.max(canvas.width / imgObj.width, canvas.height / imgObj.height);
       canvas.bgScaleMin = scaleRatio;
       canvas.bgScaleMax = scaleRatio * 1.05;  
       canvas.bgScale    = scaleRatio; 
@@ -713,10 +703,7 @@
         top:  canvas.height / 2
       });
 
-      canvas.setBackgroundImage(
-        imgObj,
-        canvas.renderAll.bind(canvas)
-      );
+      canvas.setBackgroundImage(imgObj, canvas.renderAll.bind(canvas));
       canvas.backgroundImageObject = imgObj;
     }
 
@@ -741,12 +728,11 @@
       canvas.backgroundImageObject.scaleX = canvas.bgScale;
       canvas.backgroundImageObject.scaleY = canvas.bgScale;
       canvas.renderAll();
-
       requestAnimationFrame(animateBackground);
     }
     requestAnimationFrame(animateBackground);
 
-    // --------------- NAVIGATION (NEXT/PREV) ---------------
+    // --------------- NEXT/PREV ---------------
     function nextItem() {
       audio.pause();
       audio.currentTime = 0;
@@ -760,64 +746,80 @@
       showNewsItem(currentIndex);
     }
 
-    // --------------- LIKE ANIMATION ---------------
-    function showFloatingHeart(iconElem) {
+    // --------------- LIKE / DISLIKE ANIMATION ---------------
+    function showFloatingHeart(iconElem, text="+1 ❤️") {
       const span = document.createElement('span');
       span.classList.add('floating-heart');
-      span.textContent = '+1 ❤️';
+      span.textContent = text; // either +1 or -1, etc.
       const rect = iconElem.getBoundingClientRect();
       span.style.left = (rect.x + rect.width / 2) + 'px';
       span.style.top  = (rect.y + rect.height / 2) + 'px';
       document.body.appendChild(span);
-
       span.addEventListener('animationend', () => {
         document.body.removeChild(span);
       });
     }
 
-    // --------------- LIKE HANDLER ---------------
+    // --------------- LIKE/UNLIKE HANDLER ---------------
     async function handleLikeClick() {
       const item = newsItems[currentIndex];
       const { id } = item;
 
-      // If user already liked => do nothing
+      // Toggle logic
       if (userLikedSet.has(id)) {
-        console.log("Already liked article:", id);
-        return;
-      }
-
-      showFloatingHeart(likeBtn);
-      console.log("Liking item with ID:", id);
-
-      try {
-        const response = await fetch("/like_article", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ article_id: id })
-        });
-        const data = await response.json();
-
-        if (data.error) {
-          console.error("Error liking article:", data.error);
-          return;
+        // Already liked => send "dislike" request
+        showFloatingHeart(likeBtn, "-1 💔");
+        try {
+          const response = await fetch("/dislike_article", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ article_id: id })
+          });
+          const data = await response.json();
+          if (data.error) {
+            console.error("Error disliking article:", data.error);
+            return;
+          }
+          if (data.success) {
+            // Update count, unmark
+            item.liked_count = data.liked_count;
+            userLikedSet.delete(id);
+            likeBtn.classList.remove('liked');
+            likeCountEl.textContent = data.liked_count;
+          }
+        } catch (err) {
+          console.error("Request error (dislike):", err);
         }
-        if (data.success) {
-          // Update local liked_count
-          item.liked_count = data.liked_count;
-          // Prevent re-like in this session
-          userLikedSet.add(id);
-          // Update UI
-          likeBtn.classList.add('liked');
-          likeCountEl.textContent = data.liked_count;
+
+      } else {
+        // Not yet liked => send "like" request
+        console.log("Liking item with ID:", id);
+        showFloatingHeart(likeBtn, "+1 ❤️");
+        try {
+          const response = await fetch("/like_article", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ article_id: id })
+          });
+          const data = await response.json();
+          if (data.error) {
+            console.error("Error liking article:", data.error);
+            return;
+          }
+          if (data.success) {
+            item.liked_count = data.liked_count;
+            userLikedSet.add(id);
+            likeBtn.classList.add('liked');
+            likeCountEl.textContent = data.liked_count;
+          }
+        } catch (err) {
+          console.error("Request error (like):", err);
         }
-      } catch (err) {
-        console.error("Request error:", err);
       }
     }
 
     // --------------- EVENT LISTENERS ---------------
     document.addEventListener("DOMContentLoaded", function () {
-      // Show the initial reel
       showNewsItem(currentIndex);
     });
 
@@ -827,7 +829,7 @@
       togglePlayPause();
     });
 
-    // Like
+    // Like => handleLikeClick
     likeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       handleLikeClick();
@@ -841,13 +843,13 @@
       // your share logic
     });
 
-    // Clicking background => toggle audio (except top-bar arrow)
+    // Canvas click => toggle audio (skip top-bar)
     document.getElementById('reels-container').addEventListener('click', (e) => {
       if (e.target.closest('.top-bar')) return;
       togglePlayPause();
     });
 
-    // Manual next/prev
+    // Prev/Next
     prevBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       prevItem();
@@ -883,13 +885,11 @@
       }
     });
 
-    // Scroll wheel => next/prev
+    // Scroll => next/prev
     let scrollTimeout = null;
     window.addEventListener('wheel', (e) => {
       if (scrollTimeout) return;
-      scrollTimeout = setTimeout(() => {
-        scrollTimeout = null;
-      }, 300);
+      scrollTimeout = setTimeout(() => { scrollTimeout = null; }, 300);
       if (e.deltaY > 0) {
         nextItem();
       } else {
@@ -897,7 +897,7 @@
       }
     });
 
-    // "Back to Home" arrow => stop audio & navigate
+    // "Back to Home" => stop audio & navigate
     backHomeBtn.addEventListener('click', () => {
       audio.pause();
       audio.currentTime = 0;

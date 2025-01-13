@@ -168,7 +168,7 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 # ---------------------------------------------------------------------
 # BACKGROUND TASK
 # ---------------------------------------------------------------------
-background_task_running = False
+background_task_running = True
 
 async def fetch_trending_news_loop():
     """
@@ -1029,6 +1029,67 @@ async def like_article():
     except Exception as e:
         print("Error in /like_article route:", e)
         # Return JSON with error message
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/dislike_article", methods=["POST"])
+async def dislike_article():
+    """
+    1) Expects JSON: {"article_id": <some_int>}
+    2) Decrements liked_count for JournalArticle (down to a minimum of 0).
+    3) Removes article_id from user's LikedArticles row.
+    4) Returns JSON with success + updated liked_count
+    """
+    try:
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"error": "User not logged in"}), 401
+
+        data = await request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON"}), 400
+
+        article_id = data.get("article_id")
+        if not article_id:
+            return jsonify({"error": "Missing article_id"}), 400
+
+        # 1) Decrement liked_count in journals.db
+        j_sess = SessionLocalJournals()
+        article = j_sess.execute(
+            select(JournalArticle).where(JournalArticle.id == article_id)
+        ).scalar_one_or_none()
+
+        if not article:
+            j_sess.close()
+            return jsonify({"error": "Article not found"}), 404
+
+        # Ensure we don't go below zero
+        if article.liked_count > 0:
+            article.liked_count -= 1
+
+        j_sess.commit()
+        updated_count = article.liked_count
+        j_sess.close()
+
+        # 2) Remove from LikedArticles row in users.db
+        db_sess = SessionLocal()
+        liked_entry = db_sess.execute(
+            select(LikedArticles).where(LikedArticles.user_id == user_id)
+        ).scalar_one_or_none()
+
+        if liked_entry and liked_entry.liked_article_ids:
+            existing_ids = (liked_entry.liked_article_ids or "").split(",")
+            if str(article_id) in existing_ids:
+                existing_ids.remove(str(article_id))
+                liked_entry.liked_article_ids = ",".join(filter(None, existing_ids))
+                db_sess.commit()
+
+        db_sess.close()
+
+        # 3) Return final JSON
+        return jsonify({"success": True, "liked_count": updated_count})
+
+    except Exception as e:
+        print("Error in /dislike_article route:", e)
         return jsonify({"error": str(e)}), 500
 
 @app.route('/static/images/<path:filename>')
